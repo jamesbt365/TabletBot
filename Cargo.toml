@@ -1,0 +1,9 @@
+# https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[package]
+name = "tabletbot"
+version = "1.0.0"
+authors = [ "InfinityGhost" ]
+edition = "2021"
+
+[dependencies]
