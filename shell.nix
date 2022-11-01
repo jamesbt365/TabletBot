@@ -3,6 +3,8 @@
 let
   readFileIfExists = path: with pkgs.lib; if pathExists path then readFile path else null;
 
+  default = pkgs.callPackage ./. {};
+
   rustDeps = with pkgs; [
     llvmPackages_latest.llvm
     llvmPackages_latest.bintools
@@ -15,7 +17,7 @@ let
     python3
   ];
 
-  deps = with pkgs; [];
+  deps = default.nativeBuildInputs;
 
   buildPath = toString ./.build/out;
 
@@ -38,6 +40,7 @@ in pkgs.mkShell rec {
   RUSTC_VERSION = readFileIfExists ./rust-toolchain;
   CARGO_HOME = toString ./.build/cargo;
   RUSTUP_HOME = toString ./.build/rustup;
+  TABLETBOT_DATA = toString ./.build/data;
 
   buildInputs = with pkgs; rustDeps ++ deps ++ utils;
 
@@ -45,5 +48,8 @@ in pkgs.mkShell rec {
     export LD_LIBRARY_PATH=${escapeShellArg (makeLibraryPath buildInputs)}
     export PATH=$PATH:''${CARGO_HOME:-~/.cargo}/bin
     export PATH=$PATH:''${RUSTUP_HOME:-~/.rustup}/toolchains/$RUSTC_VERSION-x86_64-unknown-linux-gnu/bin/
+    export PATH=$PATH:${escapeShellArg (makeBinPath buildInputs)}
+
+    [ -r ${TABLETBOT_DATA}/tokens ] && source ${TABLETBOT_DATA}/tokens
   '';
 }
