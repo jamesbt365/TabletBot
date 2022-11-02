@@ -23,12 +23,12 @@ let
 
   build = pkgs.writers.writeBashBin "build" ''
     cd ${toString ./src}
-    cargo build
+    cargo build $@
   '';
 
   run = pkgs.writers.writeBashBin "run" ''
     cd ${toString ./src}
-    cargo run
+    cargo run $@
   '';
 
   utils = [
@@ -39,6 +39,7 @@ let
 in pkgs.mkShell rec {
   RUSTC_VERSION = readFileIfExists ./rust-toolchain;
   CARGO_HOME = toString ./.build/cargo;
+  CARGO_TARGET_DIR= toString ./.build/target;
   RUSTUP_HOME = toString ./.build/rustup;
   TABLETBOT_DATA = toString ./.build/data;
 
