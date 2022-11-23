@@ -1,19 +1,17 @@
 use serde_json::{from_reader, to_writer_pretty};
 use serde::{Deserialize, Serialize};
 use std::{path::Path, fs::{File, OpenOptions}};
-use super::{Snippet, ReactionRole};
+use super::{Snippet};
 
 #[derive(Deserialize, Serialize)]
 pub struct State {
-  pub snippets: Vec<Snippet>,
-  pub reaction_roles: Vec<ReactionRole>
+  pub snippets: Vec<Snippet>
 }
 
 impl Default for State {
   fn default() -> State {
     Self {
-      snippets: Vec::new(),
-      reaction_roles: Vec::new()
+      snippets: Vec::new()
     }
   }
 }
