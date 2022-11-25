@@ -14,15 +14,20 @@ const RESOLVED_COLOUR: Colour = Colour(0x8957e5);
 const CLOSED_COLOUR: Colour = Colour(0xda3633);
 
 pub async fn message(ctx: &Context, message: &Message) {
-  if let Some(embeds) = issue_embeds(ctx, message).await {
+  if let Some(embeds) = issue_embeds(message).await {
+    let typing = message.channel_id.start_typing(&ctx.http)
+      .expect("Failed to start typing");
+
     message.channel_id.send_message(&ctx.http, |f| f
       .reference_message(message)
       .set_embeds(embeds)
     ).await.expect("Failed to reply with github embed");
+
+    typing.stop().expect("Failed to stop typing");
   }
 }
 
-async fn issue_embeds(ctx: &Context, message: &Message) -> Option<Vec<CreateEmbed>> {
+async fn issue_embeds(message: &Message) -> Option<Vec<CreateEmbed>> {
   let mut embeds: Vec<CreateEmbed> = vec![];
   let client = octocrab::instance();
   let ratelimit = client.ratelimit();
@@ -34,9 +39,6 @@ async fn issue_embeds(ctx: &Context, message: &Message) -> Option<Vec<CreateEmbe
 
   for capture in regex.captures_iter(&message.content) {
     if let Some(m) = capture.get(1) {
-      let typing = message.channel_id.start_typing(&ctx.http)
-        .expect("Failed to start typing");
-
       let issue_num = m.as_str().parse::<u64>()
         .expect("Match is not a number");
 
@@ -50,8 +52,6 @@ async fn issue_embeds(ctx: &Context, message: &Message) -> Option<Vec<CreateEmbe
           embeds.push(issue.embed());
         }
       }
-
-      typing.stop().expect("Failed to stop typing");
     }
   }
 
