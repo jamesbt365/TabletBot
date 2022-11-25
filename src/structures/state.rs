@@ -1,7 +1,8 @@
 use serde_json::{from_reader, to_writer_pretty};
 use serde::{Deserialize, Serialize};
-use std::{path::Path, fs::{File, OpenOptions}};
-use super::{Snippet};
+use std::fs::{self, File, OpenOptions };
+use std::path::Path;
+use super::Snippet;
 
 #[derive(Deserialize, Serialize)]
 pub struct State {
@@ -30,6 +31,11 @@ impl State {
 
   pub fn write(&self, file_path: &str) {
     let path = Path::new(file_path);
+
+    if path.exists() {
+      fs::remove_file(path).expect("Failed to delete old file.");
+    }
+
     let result = OpenOptions::new()
       .read(true)
       .write(true)
