@@ -31,9 +31,11 @@ let
     cargo run $@
   '';
 
-  utils = [
+  utils = with pkgs; [
     build # cargo build
     run # cargo run
+    cachix
+    jq
   ];
 
 in pkgs.mkShell rec {
