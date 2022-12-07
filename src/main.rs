@@ -100,7 +100,7 @@ impl EventHandler for Handler {
 
   async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
     if let Interaction::ApplicationCommand(command) = interaction {
-      println!("Received command interaction: {}", command.data.name);
+      println!("Received command interaction '{}'", command.data.name);
       commands::interact(&ctx, &command).await;
     }
   }

@@ -162,7 +162,7 @@ pub async fn respond_embed(ctx: &Context, interaction: &ApplicationCommandIntera
   ).await;
 
   if let Err(e) = result {
-    println!("Failed to respond to interaction: {} {}", interaction.data.name, e)
+    println!("Failed to respond to interaction '{}': {:#?}", interaction.data.name, e)
   }
 }
 

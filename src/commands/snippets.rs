@@ -188,18 +188,20 @@ pub(super) async fn export_snippet(ctx: &Context, interaction: &ApplicationComma
 
   match id {
     CommandDataOptionValue::String(id) => {
+      interaction.defer(ctx).await.expect("Failed to defer interaction");
+
       let snippet = get_snippet(ctx, &id).await
         .expect("Failed to get snippet");
 
       let embed = snippet.create_embed();
 
       let result = interaction.create_followup_message(ctx, |r| r
-        .content(format!("```{}```", snippet.content.replace("\n", r#"\n"#)))
+        .content(format!("```{}```", &snippet.content.replace("\n", r#"\n"#)))
         .add_embed(embed)
       ).await;
 
       if let Err(e) = result {
-        println!("Failed to respond to interaction: {} {}", interaction.data.name, e)
+        println!("Failed to respond to interaction '{}': {:#?}", interaction.data.name, e)
       }
     },
     _ => panic!("Invalid arguments provided to command: {}", interaction.data.name)
