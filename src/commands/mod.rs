@@ -13,6 +13,7 @@ use std::collections::HashMap;
 use crate::structures::State;
 
 mod snippets;
+mod utils;
 
 pub async fn register(ctx: &Context) -> ApplicationCommandMap {
   println!("Registering slash commands...");
@@ -32,13 +33,24 @@ pub async fn register(ctx: &Context) -> ApplicationCommandMap {
 }
 
 pub async fn interact(ctx: &Context, interaction: &ApplicationCommandInteraction) {
-  match interaction.data.name.as_str() {
+  let name = &interaction.data.name;
+
+  match name.as_str() {
     "snippet" => snippets::snippet(ctx, interaction).await,
     "create-snippet" => snippets::create_snippet(ctx, interaction).await,
     "edit-snippet" => snippets::edit_snippet(ctx, interaction).await,
     "remove-snippet" => snippets::remove_snippet(ctx, interaction).await,
     "export-snippet" => snippets::export_snippet(ctx, interaction).await,
-    _ => println!("WARNING: Received invalid application command interaction!: {}", interaction.data.name)
+    "embed" => utils::embed(ctx, interaction).await,
+    _ => {
+      println!("WARNING: Received invalid application command interaction!: {}", name);
+
+      interaction.defer(ctx).await.expect("Failed to defer interaction");
+
+      let title = "Invalid application command";
+      let content = &format!("An invalid application command was recieved: {}", name);
+      respond_err(ctx, interaction, title, content).await;
+    }
   }
 }
 
@@ -98,6 +110,41 @@ impl ApplicationCommandMap {
       .description("Exports a snippet for user editing")
       .clone();
 
+    let embed = CreateApplicationCommand::default()
+      .description("Creates an embed in the current channel")
+      .create_option(|o| o
+        .name("title")
+        .description("The embed title")
+        .kind(CommandOptionType::String)
+      )
+      .create_option(|o| o
+        .name("description")
+        .description("The embed description")
+        .kind(CommandOptionType::String)
+      )
+      .create_option(|o| o
+        .name("color")
+        .description("The color of the embed in hexadecimal form. (ex: #ff00ff)")
+        .kind(CommandOptionType::String)
+      )
+      .create_option(|o| o
+        .name("url")
+        .description("The embed url")
+        .kind(CommandOptionType::String)
+      )
+      .create_option(|o| o
+        .name("footer")
+        .description("The embed footer text")
+        .kind(CommandOptionType::String)
+      )
+      .create_option(|o| o
+        .name("image")
+        .description("The image url for the embed")
+        .kind(CommandOptionType::String)
+      )
+      .clone();
+
+
     let mut commands = ApplicationCommandMap(CommandHashMap::new());
 
     commands.insert("snippet", snippet);
@@ -105,6 +152,7 @@ impl ApplicationCommandMap {
     commands.insert("edit-snippet", edit_snippet);
     commands.insert("remove-snippet", remove_snippet);
     commands.insert("export-snippet", export_snippet);
+    commands.insert("embed", embed);
 
     for (name, command) in commands.0.iter_mut() {
       match *name {
