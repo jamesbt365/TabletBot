@@ -67,6 +67,7 @@ trait Embeddable {
   fn get_title(&self) -> String;
   fn get_description(&self) -> String;
   fn get_colour(&self) -> Colour;
+  fn get_labels(&self) -> Option<String>;
 }
 
 impl Embeddable for Issue {
@@ -87,14 +88,8 @@ impl Embeddable for Issue {
       embed.field("Milestone", &milestone.title, true);
     }
 
-    if !self.labels.is_empty() {
-      let mut label_list = vec![];
-      for label in &self.labels {
-        label_list.push(label.name.clone());
-      }
-
-      let value = format!("`{}`", label_list.join("`, `"));
-      embed.field("Labels", value, true);
+    if let Some(labels) = self.get_labels() {
+      embed.field("Labels", labels, true);
     }
 
     embed.to_owned()
@@ -120,6 +115,18 @@ impl Embeddable for Issue {
     match self.closed_at {
       Some(_) => CLOSED_COLOUR,
       None => OPEN_COLOUR
+    }
+  }
+
+  fn get_labels(&self) -> Option<String> {
+    if !self.labels.is_empty() {
+      let labels = &self.labels.iter()
+      .map(|l| l.name.clone())
+      .collect::<Vec<String>>();
+
+      Some(format!("`{}`", labels.join("`, `")))
+    } else {
+      None
     }
   }
 }
@@ -151,15 +158,8 @@ impl Embeddable for PullRequest {
       embed.field("Milestone", &milestone.title, true);
     }
 
-    if let Some(labels) = &self.labels {
-      let mut label_list = vec![];
-
-      for label in labels {
-        label_list.push(label.name.clone());
-      }
-
-      let value = format!("`{}`", label_list.join("`, `"));
-      embed.field("Labels", value, true);
+    if let Some(labels) = self.get_labels() {
+      embed.field("Labels", labels, true);
     }
 
     embed.to_owned()
@@ -192,5 +192,19 @@ impl Embeddable for PullRequest {
       },
       None => OPEN_COLOUR
     }
+  }
+
+  fn get_labels(&self) -> Option<String> {
+    if let Some(labels) = &self.labels {
+      if !labels.is_empty() {
+        let labels = labels.iter()
+        .map(|l| l.name.clone())
+        .collect::<Vec<String>>();
+
+        return Some(format!("`{}`", labels.join("`, `")))
+      }
+    }
+
+    None
   }
 }
