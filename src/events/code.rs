@@ -128,13 +128,12 @@ impl FileReference<'_> {
 
     if let Some(content) = http_get_body_text(&url).await {
       let lines: Vec<&str> = content.split("\n").collect();
+      let start = self.start - 1;
 
       if let Some(end) = self.end {
-        // return Some(lines.join("\n"))
-        return Some(trim_indent(&lines[self.start..=end]))
-        // return Some(trim_indent(&lines[self.start..=end]));
+        return Some(trim_indent(&lines[start..=end]))
       } else {
-        return Some(lines[self.start].trim_start().to_string())
+        return Some(lines[start].trim_start().to_string())
       }
     } else {
       None
