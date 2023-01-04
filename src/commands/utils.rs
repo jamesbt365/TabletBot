@@ -13,8 +13,6 @@ pub(super) async fn embed(ctx: &Context, interaction: &ApplicationCommandInterac
   let footer_text = arg_opt(interaction, "footer");
   let image = arg_opt(interaction, "image");
 
-  interaction.defer(ctx).await.expect("Failed to defer interaction");
-
   let mut embed = CreateEmbed::default();
 
   if let Some(CommandDataOptionValue::String(title)) = title {

@@ -35,6 +35,8 @@ pub async fn register(ctx: &Context) -> ApplicationCommandMap {
 pub async fn interact(ctx: &Context, interaction: &ApplicationCommandInteraction) {
   let name = &interaction.data.name;
 
+  interaction.defer(ctx).await.expect("Failed to defer interaction");
+
   match name.as_str() {
     "snippet" => snippets::snippet(ctx, interaction).await,
     "create-snippet" => snippets::create_snippet(ctx, interaction).await,
@@ -44,8 +46,6 @@ pub async fn interact(ctx: &Context, interaction: &ApplicationCommandInteraction
     "embed" => utils::embed(ctx, interaction).await,
     _ => {
       println!("WARNING: Received invalid application command interaction!: {}", name);
-
-      interaction.defer(ctx).await.expect("Failed to defer interaction");
 
       let title = "Invalid application command";
       let content = &format!("An invalid application command was recieved: {}", name);
@@ -143,7 +143,6 @@ impl ApplicationCommandMap {
         .kind(CommandOptionType::String)
       )
       .clone();
-
 
     let mut commands = ApplicationCommandMap(CommandHashMap::new());
 

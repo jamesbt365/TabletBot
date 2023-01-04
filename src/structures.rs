@@ -1,5 +1,6 @@
 use serde_json::{from_reader, to_writer_pretty};
 use serde::{Deserialize, Serialize};
+use serenity::builder::CreateEmbed;
 use serenity::client::bridge::gateway::ShardManager;
 use serenity::prelude::{TypeMapKey, Mutex};
 use std::env;
@@ -11,6 +12,10 @@ pub struct ShardManagerContainer;
 
 impl TypeMapKey for ShardManagerContainer {
   type Value = Arc<Mutex<ShardManager>>;
+}
+
+pub trait Embeddable {
+  fn embed(&self) -> CreateEmbed;
 }
 
 #[derive(Deserialize, Serialize, Clone)]
