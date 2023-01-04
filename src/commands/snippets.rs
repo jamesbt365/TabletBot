@@ -4,7 +4,7 @@ use serenity::json::Value;
 use serenity::model::prelude::command::CommandOptionType;
 use serenity::model::prelude::interaction::application_command::{ApplicationCommandInteraction, CommandDataOptionValue};
 use serenity::prelude::Context;
-use crate::structures::{State, Snippet};
+use crate::structures::{State, Snippet, Embeddable};
 use crate::commands::{arg, respond_ok};
 
 use super::{respond_err, respond_embed, arg_opt};
@@ -27,10 +27,8 @@ pub(super) fn sync_snippets(state: &State, command: &mut CreateApplicationComman
 pub(super) async fn snippet(ctx: &Context, interaction: &ApplicationCommandInteraction) {
   match arg(interaction, "id") {
     CommandDataOptionValue::String(id) => {
-      interaction.defer(ctx).await.expect("Failed to defer interaction");
-
       if let Some(snippet) = get_snippet(ctx, &id).await {
-        let embed = snippet.create_embed();
+        let embed = snippet.embed();
 
         respond_embed(ctx, interaction, &embed, false).await;
       } else {
@@ -47,8 +45,6 @@ pub(super) async fn edit_snippet(ctx: &Context, interaction: &ApplicationCommand
   let content = arg_opt(interaction, "content");
 
   if let CommandDataOptionValue::String(id) = id {
-    interaction.defer(ctx).await.expect("Failed to defer interaction");
-
     {
       let mut data = ctx.data.write().await;
       let state = data.get_mut::<State>().expect("Failed to get state");
@@ -97,7 +93,7 @@ pub(super) async fn edit_snippet(ctx: &Context, interaction: &ApplicationCommand
 
     let mut embed = get_snippet(ctx, &id).await
       .expect("Failed to get snippet for recently modified snippet")
-      .create_embed();
+      .embed();
 
     embed.colour(super::OK_COLOUR);
 
@@ -116,8 +112,6 @@ pub(super) async fn create_snippet(ctx: &Context, interaction: &ApplicationComma
       CommandDataOptionValue::String(title),
       CommandDataOptionValue::String(content)
     ) => {
-      interaction.defer(ctx).await.expect("Failed to defer interaction");
-
       let embed = {
         let mut data = ctx.data.write().await;
         let state = data.get_mut::<State>().expect("Failed to get state");
@@ -134,7 +128,7 @@ pub(super) async fn create_snippet(ctx: &Context, interaction: &ApplicationComma
 
         println!("New snippet created '{}: {}'", id, title);
 
-        let mut embed = snippet.create_embed();
+        let mut embed = snippet.embed();
         embed.colour(super::OK_COLOUR);
 
         state.snippets.push(snippet);
@@ -159,8 +153,6 @@ pub(super) async fn remove_snippet(ctx: &Context, interaction: &ApplicationComma
 
   match id {
     CommandDataOptionValue::String(id) => {
-      interaction.defer(ctx).await.expect("Failed to defer interaction");
-
       println!("Removing snippet '{id}'");
 
       match get_snippet(ctx, &id).await {
@@ -188,16 +180,12 @@ pub(super) async fn export_snippet(ctx: &Context, interaction: &ApplicationComma
 
   match id {
     CommandDataOptionValue::String(id) => {
-      interaction.defer(ctx).await.expect("Failed to defer interaction");
-
       let snippet = get_snippet(ctx, &id).await
         .expect("Failed to get snippet");
 
-      let embed = snippet.create_embed();
-
       let result = interaction.create_followup_message(ctx, |r| r
         .content(format!("```{}```", &snippet.content.replace("\n", r#"\n"#)))
-        .add_embed(embed)
+        .add_embed(snippet.embed())
       ).await;
 
       if let Err(e) = result {
@@ -208,12 +196,8 @@ pub(super) async fn export_snippet(ctx: &Context, interaction: &ApplicationComma
   }
 }
 
-trait SnippetEmbed {
-  fn create_embed(&self) -> CreateEmbed;
-}
-
-impl SnippetEmbed for Snippet {
-  fn create_embed(&self) -> CreateEmbed {
+impl Embeddable for Snippet {
+  fn embed(&self) -> CreateEmbed {
     CreateEmbed::default()
       .title(&self.title)
       .description(&self.content)

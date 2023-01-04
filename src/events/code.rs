@@ -23,7 +23,9 @@ async fn get_embeds(ctx: &Context, message: &Message) -> Option<Vec<CreateEmbed>
 
   if let Some(refs) = FileReference::try_from_str(&message.content) {
     for file_ref in refs {
-      embeds.push(file_ref.create_embed().await);
+      if let Some(embed) = file_ref.create_embed().await {
+        embeds.push(embed);
+      }
     }
   }
 
@@ -98,20 +100,23 @@ impl FileReference<'_> {
     }
   }
 
-  pub async fn create_embed(&self) -> CreateEmbed {
+  pub async fn create_embed(&self) -> Option<CreateEmbed> {
     let extension = self.get_extension();
 
-    let mut content = self.display().await.expect("Failed to get content");
-    content.shrink_to(4096 - 8 - extension.len());
+    if let Some(mut content) = self.display().await {
+      content.shrink_to(4096 - 8 - extension.len());
 
-    let description = format!("```{}\n{}\n```", extension, content);
+      let description = format!("```{}\n{}\n```", extension, content);
 
-    let mut default = CreateEmbed::default();
-    default.title(self.path)
-      .description(description)
-      .colour(ACCENT_COLOUR);
+      let mut default = CreateEmbed::default();
+      default.title(self.path)
+        .description(description)
+        .colour(ACCENT_COLOUR);
 
-    default
+      Some(default)
+    } else {
+      None
+    }
   }
 
   fn get_extension(&self) -> String {
@@ -131,9 +136,13 @@ impl FileReference<'_> {
       let start = self.start - 1;
 
       if let Some(end) = self.end {
-        return Some(trim_indent(&lines[start..=end]))
+        if end <= start {
+          None
+        } else {
+          Some(trim_indent(&lines[start..end]))
+        }
       } else {
-        return Some(lines[start].trim_start().to_string())
+        Some(lines[start].trim_start().to_string())
       }
     } else {
       None

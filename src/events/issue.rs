@@ -5,6 +5,7 @@ use serenity::builder::CreateEmbed;
 use serenity::model::prelude::Message;
 use serenity::prelude::Context;
 use serenity::utils::Colour;
+use crate::structures::Embeddable;
 
 const REPO_OWNER: &str = "OpenTabletDriver";
 const REPO_NAME: &str = "OpenTabletDriver";
@@ -62,10 +63,9 @@ async fn issue_embeds(message: &Message) -> Option<Vec<CreateEmbed>> {
   }
 }
 
-trait Embeddable {
-  fn embed(&self) -> CreateEmbed;
+trait Document {
   fn get_title(&self) -> String;
-  fn get_description(&self) -> String;
+  fn get_content(&self) -> String;
   fn get_colour(&self) -> Colour;
   fn get_labels(&self) -> Option<String>;
 }
@@ -74,8 +74,8 @@ impl Embeddable for Issue {
   fn embed(&self) -> CreateEmbed {
     let mut default = CreateEmbed::default();
     let embed = default
-      .title(format!("#{}: {}", self.number, self.title))
-      .description(self.get_description())
+      .title(self.get_title())
+      .description(self.get_content())
       .url(self.html_url.as_str())
       .colour(self.get_colour())
       .author(|a| a
@@ -94,12 +94,14 @@ impl Embeddable for Issue {
 
     embed.to_owned()
   }
+}
 
+impl Document for Issue {
   fn get_title(&self) -> String {
     format!("#{}: {}", self.number, self.title)
   }
 
-  fn get_description(&self) -> String {
+  fn get_content(&self) -> String {
     let body = self.body.as_deref().unwrap_or_default();
 
     let mut description = String::default();
@@ -139,7 +141,7 @@ impl Embeddable for PullRequest {
     let mut default = CreateEmbed::default();
     let embed = default
       .title(self.get_title())
-      .description(self.get_description())
+      .description(self.get_content())
       .colour(self.get_colour());
 
     if let Some(user) = &self.user {
@@ -164,7 +166,10 @@ impl Embeddable for PullRequest {
 
     embed.to_owned()
   }
+}
 
+
+impl Document for PullRequest {
   fn get_title(&self) -> String {
     match &self.title {
       Some(title) => format!("#{}: {}", self.number, title),
@@ -172,16 +177,16 @@ impl Embeddable for PullRequest {
     }
   }
 
-  fn get_description(&self) -> String {
+  fn get_content(&self) -> String {
     let body = self.body.as_deref().unwrap_or_default();
 
-    let mut description = String::default();
+    let mut content = String::default();
     for line in body.split("\n").take(15) {
-      description.push_str(&format!("{}\n", line));
+      content.push_str(&format!("{}\n", line));
     }
 
-    description.shrink_to(4096);
-    description
+    content.shrink_to(4096);
+    content
   }
 
   fn get_colour(&self) -> Colour {
