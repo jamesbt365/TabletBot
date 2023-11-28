@@ -53,14 +53,14 @@ async fn main() {
         ],
         prefix_options: poise::PrefixFrameworkOptions {
             prefix: Some("!".into()),
-            edit_tracker: Some(poise::EditTracker::for_timespan(Duration::from_secs(600))),
+            edit_tracker: Some(Arc::new(poise::EditTracker::for_timespan(Duration::from_secs(600)))),
             ..Default::default()
         },
         on_error: |error| Box::pin(on_error(error)),
 
         skip_checks_for_owners: false,
-        event_handler: |event: &serenity::FullEvent, framework, data| {
-            Box::pin(event_handler(event.clone(), framework, data))
+        event_handler: |ctx, event: &serenity::FullEvent, framework, data| {
+            Box::pin(event_handler(ctx, event.clone(), framework, data))
         },
         ..Default::default()
     };
@@ -88,14 +88,15 @@ async fn main() {
 }
 
 pub async fn event_handler(
+    ctx: &serenity::Context,
     event: serenity::FullEvent,
     _framework: poise::FrameworkContext<'_, Data, Error>,
     data: &Data,
 ) -> Result<(), Error> {
     #[allow(clippy::single_match)]
     match event {
-        serenity::FullEvent::Message { ctx, new_message } => {
-            events::message(&ctx, new_message, data).await?;
+        serenity::FullEvent::Message { new_message } => {
+            events::message(ctx, new_message, data).await?;
         }
         _ => (),
     }
