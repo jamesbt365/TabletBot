@@ -1,81 +1,93 @@
-use serenity::builder::CreateEmbed;
-use serenity::model::prelude::interaction::application_command::{ApplicationCommandInteraction, CommandDataOptionValue};
-use serenity::prelude::Context;
-use serenity::utils::Colour;
+use crate::{
+    commands::{respond_embed, respond_err},
+    Context, Error,
+};
 
-use super::{arg_opt, respond_err, respond_embed};
+use poise::serenity_prelude::{Colour, CreateEmbed, CreateEmbedFooter};
 
-pub(super) async fn embed(ctx: &Context, interaction: &ApplicationCommandInteraction) {
-  let title = arg_opt(interaction, "title");
-  let description = arg_opt(interaction, "description");
-  let color = arg_opt(interaction, "color");
-  let url = arg_opt(interaction, "url");
-  let footer_text = arg_opt(interaction, "footer");
-  let image = arg_opt(interaction, "image");
+/// Create an embed in the current channel.
+#[allow(clippy::too_many_arguments)]
+#[poise::command(slash_command, guild_only)]
+pub async fn embed(
+    ctx: Context<'_>,
+    #[description = "The embed title"] title: Option<String>,
+    #[description = "The embed description"] description: Option<String>,
+    #[description = "The color of the embed in hexidecimal form. (ex: ff00ff)"] color: Option<
+        String,
+    >,
+    #[description = "The embed url"] url: Option<String>,
+    #[description = "The embed image"] image: Option<String>,
+    #[description = "The embed footer text"] footer: Option<String>,
+    #[description = "The embed thumbnail"] thumbnail: Option<String>,
+) -> Result<(), Error> {
+    let at_least_one_property_set = title.is_some()
+        || description.is_some()
+        || image.is_some()
+        || thumbnail.is_some()
+        || footer.is_some();
 
-  let mut embed = CreateEmbed::default();
+    let url_invalid = url.is_some() && title.is_none();
 
-  if let Some(CommandDataOptionValue::String(title)) = title {
-    embed.title(title);
-  }
-
-  if let Some(CommandDataOptionValue::String(description)) = description {
-    embed.description(description);
-  }
-
-  if let Some(CommandDataOptionValue::String(color)) = &color {
-    match hex::decode(color.to_ascii_lowercase().replace("#",  "")) {
-      Ok(hex_arr) => {
-        embed.color(Colour::from_rgb(hex_arr[0], hex_arr[1], hex_arr[2]));
-      },
-      Err(e) => {
-        let title = "Invalid color provided";
-        let content = &format!("The color '{}' is not a valid hexadecimal color: {}", &color, e);
-        return respond_err(ctx, interaction, title, content).await
-      }
+    if !at_least_one_property_set {
+        respond_err(
+            &ctx,
+            "Failed to respond with embed",
+            "Please provide at least one title, description, image, footer or thumbnail",
+        )
+        .await;
+        ctx.say("You must provide at least one title, description, image or thumbnail.")
+            .await?;
+        return Ok(());
     }
-  }
 
-  if let Some(CommandDataOptionValue::String(url)) = url {
-    match url.parse::<reqwest::Url>() {
-      Ok(_) => {
-        if embed.0.contains_key("title") {
-          embed.url(url);
-        } else {
-          let title = "Invalid parameters";
-          let content = "A title is required for a url to function";
-          return respond_err(ctx, interaction, title, content).await
+    if url_invalid {
+        respond_err(
+            &ctx,
+            "Failed to respond with embed",
+            "To set a url, you must set a title",
+        )
+        .await;
+        return Ok(());
+    }
+
+    let mut embed = CreateEmbed::default();
+
+    if let Some(title) = title {
+        embed = embed.title(title);
+    }
+
+    if let Some(description) = description {
+        embed = embed.description(description.replace(r"\n", "\n"));
+    }
+    if let Some(image) = image {
+        embed = embed.image(image);
+    }
+
+    if let Some(footer) = footer {
+        embed = embed.footer(CreateEmbedFooter::new(footer));
+    }
+
+    if let Some(thumbnail) = thumbnail {
+        embed = embed.thumbnail(thumbnail);
+    }
+
+    if let Some(color) = color {
+        match hex::decode(color.to_ascii_lowercase().replace('#', "")) {
+            Ok(hex_arr) => {
+                embed = embed.color(Colour::from_rgb(hex_arr[0], hex_arr[1], hex_arr[2]));
+            }
+            Err(e) => {
+                let title = "Invalid color provided";
+                let content = &format!(
+                    "The color '{}' is not a valid hexadecimal color: {}",
+                    &color, e
+                );
+                respond_err(&ctx, title, content).await;
+            }
         }
-      },
-      Err(e) => {
-        let title = "Invalid url provided";
-        let content = &format!("The url '{}' is not a valid url: {}", url, e);
-        return respond_err(ctx, interaction, title, content).await
-      }
     }
-  }
 
-  if let Some(CommandDataOptionValue::String(footer_text)) = footer_text {
-    embed.footer(|f| f.text(footer_text));
-  }
+    respond_embed(&ctx, embed, false).await;
 
-  if let Some(CommandDataOptionValue::String(image)) = image {
-    match image.parse::<reqwest::Url>() {
-      Ok(_) => {
-        embed.image(image);
-      },
-      Err(e) => {
-        let title = "Invalid image url provided";
-        let content = &format!("The image url '{}' is not a valid image url: {}", image, e);
-
-        return respond_err(ctx, interaction, title, content).await
-      }
-    }
-  }
-
-  if embed.0.contains_key("title") || embed.0.contains_key("description") || embed.0.contains_key("footer") {
-    respond_embed(ctx, interaction, &embed, false).await
-  } else {
-    respond_err(ctx, interaction, "Failed to respond with embed", "Embed does not have any content").await
-  }
+    Ok(())
 }

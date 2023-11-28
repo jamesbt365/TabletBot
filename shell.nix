@@ -1,9 +1,11 @@
 # https://nixos.wiki/wiki/Rust#Installation_via_rustup
-{ pkgs ? import <nixpkgs> {} }:
+{ pkgs ? import <nixpkgs> { } }:
 let
-  readFileIfExists = path: with pkgs.lib; if pathExists path then readFile path else null;
+  readFileIfExists = path:
+    with pkgs.lib;
+    if pathExists path then readFile path else null;
 
-  default = pkgs.callPackage ./. {};
+  default = pkgs.callPackage ./. { };
 
   rustDeps = with pkgs; [
     llvmPackages_latest.llvm
@@ -41,7 +43,7 @@ let
 in pkgs.mkShell rec {
   RUSTC_VERSION = readFileIfExists ./rust-toolchain;
   CARGO_HOME = toString ./.build/cargo;
-  CARGO_TARGET_DIR= toString ./.build/target;
+  CARGO_TARGET_DIR = toString ./.build/target;
   RUSTUP_HOME = toString ./.build/rustup;
   TABLETBOT_DATA = toString ./.build/data;
 
