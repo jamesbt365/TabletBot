@@ -1,11 +1,6 @@
 {
   "snippets": [
     {
-      "id": "snippet",
-      "title": "yes",
-      "content": "yes\nyes"
-    },
-    {
       "id": "yes",
       "title": "thingy",
       "content": "another snippet"

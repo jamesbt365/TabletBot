@@ -87,7 +87,6 @@ pub async fn embed(
         }
     }
 
-
     respond_embed(&ctx, embed, false).await;
 
     Ok(())

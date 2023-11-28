@@ -4,7 +4,7 @@ use crate::{
     Context, Error,
 };
 use ::serenity::futures::{Stream, StreamExt};
-use poise::serenity_prelude::{futures, CreateEmbed, Colour};
+use poise::serenity_prelude::{futures, Colour, CreateEmbed};
 
 async fn autocomplete_snippet<'a>(
     ctx: Context<'a>,
@@ -30,7 +30,7 @@ async fn autocomplete_snippet<'a>(
 /// Show a snippet
 ///
 /// Allows usage of both just the id and the formatted name (id: title)
-#[poise::command(slash_command, prefix_command, guild_only)]
+#[poise::command(slash_command, prefix_command, guild_only, track_edits)]
 pub async fn snippet(
     ctx: Context<'_>,
     #[rest]
@@ -67,7 +67,7 @@ pub async fn create_snippet(
     let embed = {
         let mut mutex_guard = ctx.data().snip.lock().unwrap();
 
-        if let Some(position) = mutex_guard.snippets.iter().position(|s| s.id == id) {
+        if let Some(position) = mutex_guard.snippets.iter().position(|s| s.id.eq(&id)) {
             mutex_guard.snippets.remove(position);
         }
 
@@ -101,6 +101,45 @@ pub async fn create_snippet(
     Ok(())
 }
 
+/// Edits a snippet
+#[poise::command(rename = "edit-snippet", slash_command, guild_only)]
+pub async fn edit_snippet(
+    ctx: Context<'_>,
+    #[autocomplete = "autocomplete_snippet"]
+    #[description = "The snippet's id"]
+    id: String,
+    #[description = "The snippet's title"] title: Option<String>,
+    #[description = "The snippet's content"] content: Option<String>,
+) -> Result<(), Error> {
+    match get_snippet(&ctx, &id).await {
+        Some(mut snippet) => {
+            if let Some(title) = title {
+                snippet.title = title;
+            }
+
+            if let Some(content) = content {
+                snippet.content = content.replace(r"\n", "\n");
+            }
+
+            {
+                let mut mutex_guard = ctx.data().snip.lock().unwrap();
+                mutex_guard.snippets.push(snippet.clone());
+                mutex_guard.write();
+            }
+
+            let embed = snippet.embed().colour(super::OK_COLOUR);
+            respond_embed(&ctx, embed, false).await;
+        }
+        None => {
+            let title = &"Failed to edit snippet";
+            let content = &&format!("The snippet '{id}' does not exist");
+            respond_err(&ctx, title, content).await
+        }
+    };
+
+    Ok(())
+}
+
 /// Delete snippet
 ///
 /// Must use the full formatted snippet name (id: title)
@@ -129,10 +168,14 @@ pub async fn delete_snippet(
 }
 
 /// Lists all snippets
-#[poise::command(rename = "list-snippets", slash_command, prefix_command, guild_only)]
-pub async fn list_snippets(
-    ctx: Context<'_>,
-) -> Result<(), Error> {
+#[poise::command(
+    rename = "list-snippets",
+    slash_command,
+    prefix_command,
+    guild_only,
+    track_edits
+)]
+pub async fn list_snippets(ctx: Context<'_>) -> Result<(), Error> {
     let snippets = { ctx.data().snip.lock().unwrap().snippets.clone() };
 
     let mut embed = CreateEmbed::default().title("Snippets").color(Colour::TEAL);
@@ -147,7 +190,6 @@ pub async fn list_snippets(
 
     Ok(())
 }
-
 
 /// Exports a snippet for user editing.
 ///
