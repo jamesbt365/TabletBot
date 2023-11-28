@@ -4,7 +4,7 @@ use crate::{
     Context, Error,
 };
 use ::serenity::futures::{Stream, StreamExt};
-use poise::serenity_prelude::{futures, CreateEmbed};
+use poise::serenity_prelude::{futures, CreateEmbed, Colour};
 
 async fn autocomplete_snippet<'a>(
     ctx: Context<'a>,
@@ -128,6 +128,27 @@ pub async fn delete_snippet(
     Ok(())
 }
 
+/// Lists all snippets
+#[poise::command(rename = "list-snippets", slash_command, prefix_command, guild_only)]
+pub async fn list_snippets(
+    ctx: Context<'_>,
+) -> Result<(), Error> {
+    let snippets = { ctx.data().snip.lock().unwrap().snippets.clone() };
+
+    let mut embed = CreateEmbed::default().title("Snippets").color(Colour::TEAL);
+
+    // fields are limited to 25 max, we can't display more than 25 snippets in the snippets command anyway
+    // due to a discord limitation.
+    for snippet in snippets.iter().take(25) {
+        embed = embed.field(format!("`{}`", snippet.id), &snippet.title, false);
+    }
+
+    ctx.send(poise::CreateReply::default().embed(embed)).await?;
+
+    Ok(())
+}
+
+
 /// Exports a snippet for user editing.
 ///
 /// Allows usage of both just the id and the formatted name (id: title)
@@ -192,15 +213,15 @@ async fn get_snippet_lazy(ctx: &Context<'_>, id: &str) -> Option<Snippet> {
 
 async fn rm_snippet(ctx: &Context<'_>, snippet: &Snippet) {
     let data = ctx.data();
-    let mut mutex_lock = data.snip.lock().unwrap();
+    let mut mutex_guard = data.snip.lock().unwrap();
 
-    let index = mutex_lock
+    let index = mutex_guard
         .snippets
         .iter()
         .position(|s| s.id == snippet.id)
         .expect("Snippet was not found in vec");
 
     println!("Removing snippet '{}: {}'", snippet.id, snippet.title);
-    mutex_lock.snippets.remove(index);
-    mutex_lock.write();
+    mutex_guard.snippets.remove(index);
+    mutex_guard.write();
 }

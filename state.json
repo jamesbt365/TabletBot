@@ -1,0 +1,24 @@
+{
+  "snippets": [
+    {
+      "id": "snippet",
+      "title": "yes",
+      "content": "yes\nyes"
+    },
+    {
+      "id": "yes",
+      "title": "thingy",
+      "content": "another snippet"
+    },
+    {
+      "id": "a",
+      "title": "b",
+      "content": "c"
+    },
+    {
+      "id": "b",
+      "title": "c",
+      "content": "d"
+    }
+  ]
+}

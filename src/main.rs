@@ -50,6 +50,7 @@ async fn main() {
             commands::snippets::create_snippet(),
             commands::snippets::delete_snippet(),
             commands::snippets::export_snippet(),
+            commands::snippets::list_snippets(),
             commands::utils::embed(),
         ],
         prefix_options: poise::PrefixFrameworkOptions {
