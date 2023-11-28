@@ -33,6 +33,7 @@ async fn autocomplete_snippet<'a>(
 #[poise::command(slash_command, prefix_command, guild_only)]
 pub async fn snippet(
     ctx: Context<'_>,
+    #[rest]
     #[description = "The snippet's id"]
     #[autocomplete = "autocomplete_snippet"]
     id: String,
@@ -62,8 +63,7 @@ pub async fn create_snippet(
     #[description = "The snippet's title"] title: String,
     #[description = "The snippet's content"] content: String,
 ) -> Result<(), Error> {
-
-  // I really don't like the code I wrote here.
+    // I really don't like the code I wrote here.
     let embed = {
         let mut mutex_guard = ctx.data().snip.lock().unwrap();
 
@@ -134,6 +134,7 @@ pub async fn delete_snippet(
 #[poise::command(rename = "export-snippet", slash_command, prefix_command, guild_only)]
 pub async fn export_snippet(
     ctx: Context<'_>,
+    #[rest]
     #[autocomplete = "autocomplete_snippet"]
     #[description = "The snippet's id"]
     id: String,

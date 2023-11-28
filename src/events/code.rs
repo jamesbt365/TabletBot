@@ -110,9 +110,8 @@ impl FileReference<'_> {
 
             let description = format!("```{}\n{}\n```", extension, content);
 
-            let default = CreateEmbed::default();
-            let _ = default
-                .clone()
+            let mut default = CreateEmbed::default();
+            default = default
                 .title(self.path)
                 .description(description)
                 .colour(ACCENT_COLOUR);
