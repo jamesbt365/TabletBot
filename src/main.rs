@@ -50,10 +50,13 @@ async fn main() {
             commands::snippets::create_snippet(),
             commands::snippets::delete_snippet(),
             commands::snippets::export_snippet(),
+            commands::utils::embed(),
         ],
         prefix_options: poise::PrefixFrameworkOptions {
             prefix: Some("!".into()),
-            edit_tracker: Some(Arc::new(poise::EditTracker::for_timespan(Duration::from_secs(600)))),
+            edit_tracker: Some(Arc::new(poise::EditTracker::for_timespan(
+                Duration::from_secs(600),
+            ))),
             ..Default::default()
         },
         on_error: |error| Box::pin(on_error(error)),
