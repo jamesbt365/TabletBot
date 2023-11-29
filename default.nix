@@ -1,24 +1,8 @@
-{ lib
-, rustPlatform
-, pkg-config
-, openssl
-}:
+{ lib, rustPlatform, pkg-config, openssl }:
 
-rustPlatform.buildRustPackage rec {
-  pname = "tabletbot";
-  name = pname;
-
-  nativeBuildInputs = [
-    pkg-config
-  ];
-
-  buildInputs = [
-    openssl
-  ];
-
-  src = ./.;
-
-  cargoLock = {
-    lockFile = ./Cargo.lock;
-  };
-}
+        (pkgs.makeRustPlatform {
+          cargo = toolchain;
+          rustc = toolchain;
+        }).buildRustPackage {
+          pname = "example";
+          version = "0.1.0";
