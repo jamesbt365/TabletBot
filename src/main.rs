@@ -63,6 +63,12 @@ async fn main() {
         },
         on_error: |error| Box::pin(on_error(error)),
 
+        pre_command: |ctx| {
+            Box::pin(async move {
+                println!("Executing command {}...", ctx.command().qualified_name);
+            })
+        },
+
         skip_checks_for_owners: false,
         event_handler: |ctx, event: &serenity::FullEvent, framework, data| {
             Box::pin(event_handler(ctx, event.clone(), framework, data))
@@ -77,8 +83,6 @@ async fn main() {
             Ok(Data { octocrab, snip })
         })
     });
-
-    // pre post command stuff
 
     let intents = GatewayIntents::GUILD_MESSAGES
         | GatewayIntents::DIRECT_MESSAGES

@@ -4,7 +4,7 @@ use crate::{
     Context, Error,
 };
 use ::serenity::futures::{Stream, StreamExt};
-use poise::serenity_prelude::{futures, Colour, CreateEmbed};
+use poise::serenity_prelude::{futures, Colour, CreateAttachment, CreateEmbed};
 
 async fn autocomplete_snippet<'a>(
     ctx: Context<'a>,
@@ -80,6 +80,7 @@ pub async fn create_snippet(
         mutex_guard.snippets.push(snippet.clone());
 
         mutex_guard.snippets = mutex_guard.snippets.clone();
+        println!("New snippet created '{}: {}'", id, title);
         mutex_guard.write();
 
         let mut embed = snippet.embed();
@@ -124,6 +125,7 @@ pub async fn edit_snippet(
             {
                 let mut mutex_guard = ctx.data().snip.lock().unwrap();
                 mutex_guard.snippets.push(snippet.clone());
+                println!("Snippet edited '{}: {}'", snippet.title, snippet.content);
                 mutex_guard.write();
             }
 
@@ -180,7 +182,7 @@ pub async fn list_snippets(ctx: Context<'_>) -> Result<(), Error> {
 
     let mut embed = CreateEmbed::default().title("Snippets").color(Colour::TEAL);
 
-    // fields are limited to 25 max, we can't display more than 25 snippets in the snippets command anyway
+    // fields are limited to 25 max, we can't display more than 25 snippets in the snippets command
     // due to a discord limitation.
     for snippet in snippets.iter().take(25) {
         embed = embed.field(format!("`{}`", snippet.id), &snippet.title, false);
@@ -204,8 +206,12 @@ pub async fn export_snippet(
 ) -> Result<(), Error> {
     match get_snippet_lazy(&ctx, &id).await {
         Some(snippet) => {
+            let attachment = CreateAttachment::bytes(
+                format!("{}", &snippet.content.replace('\n', r"\n")),
+                "snippet.txt",
+            );
             let message = poise::CreateReply::default()
-                .content(format!("```{}```", &snippet.content.replace('\n', r"\n")))
+                .attachment(attachment)
                 .embed(snippet.embed());
             ctx.send(message).await?;
         }
