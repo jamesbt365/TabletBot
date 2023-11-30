@@ -3,17 +3,17 @@ pub(crate) mod events;
 pub(crate) mod formatting;
 pub(crate) mod structures;
 
-use std::sync::Mutex;
+use std::sync::RwLock;
 use std::time::Duration;
 use std::{env, sync::Arc};
 
 use octocrab::Octocrab;
 use poise::serenity_prelude::{self as serenity, GatewayIntents};
-use structures::SnippetState;
+use structures::BotState;
 
 pub struct Data {
     pub octocrab: Arc<Octocrab>,
-    pub snip: Mutex<SnippetState>,
+    pub state: RwLock<BotState>,
 }
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
@@ -41,7 +41,7 @@ async fn main() {
 
     let octocrab = octocrab::initialise(octo_builder).expect("Failed to build github client");
 
-    let snip = Mutex::new(structures::SnippetState::read());
+    let state = RwLock::new(BotState::read());
 
     let options = poise::FrameworkOptions {
         commands: vec![
@@ -53,6 +53,10 @@ async fn main() {
             commands::snippets::list_snippets(),
             commands::snippets::edit_snippet(),
             commands::utils::embed(),
+            commands::utils::edit_embed(),
+            commands::utils::add_issue_token(),
+            commands::utils::remove_issue_token(),
+            commands::utils::list_tokens(),
         ],
         prefix_options: poise::PrefixFrameworkOptions {
             prefix: Some("!".into()),
@@ -71,7 +75,7 @@ async fn main() {
 
         skip_checks_for_owners: false,
         event_handler: |ctx, event: &serenity::FullEvent, framework, data| {
-            Box::pin(event_handler(ctx, event.clone(), framework, data))
+            Box::pin(events::event_handler(ctx, event, framework, data))
         },
         ..Default::default()
     };
@@ -80,7 +84,7 @@ async fn main() {
         Box::pin(async move {
             println!("Logged in as {}", ready.user.name);
             poise::builtins::register_globally(ctx, &framework.options().commands).await?;
-            Ok(Data { octocrab, snip })
+            Ok(Data { octocrab, state })
         })
     });
 
@@ -94,21 +98,4 @@ async fn main() {
         .unwrap();
 
     client.start().await.unwrap();
-}
-
-pub async fn event_handler(
-    ctx: &serenity::Context,
-    event: serenity::FullEvent,
-    _framework: poise::FrameworkContext<'_, Data, Error>,
-    data: &Data,
-) -> Result<(), Error> {
-    #[allow(clippy::single_match)]
-    match event {
-        serenity::FullEvent::Message { new_message } => {
-            events::message(ctx, new_message, data).await?;
-        }
-        _ => (),
-    }
-
-    Ok(())
 }

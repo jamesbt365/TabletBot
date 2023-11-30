@@ -1,44 +1,131 @@
+use std::time::Duration;
+
+use crate::{structures::Embeddable, Data};
 use ::serenity::builder::CreateEmbedAuthor;
 use octocrab::models::issues::Issue;
 use octocrab::models::pulls::PullRequest;
-use poise::serenity_prelude::{self as serenity, Colour, Context, CreateEmbed, Message};
+use poise::serenity_prelude::{
+    self as serenity, Colour, Context, CreateEmbed, Message, Permissions,
+};
 use regex::Regex;
 
-use crate::structures::Embeddable;
-
-const REPO_OWNER: &str = "OpenTabletDriver";
-const REPO_NAME: &str = "OpenTabletDriver";
+const DEFAULT_REPO_OWNER: &str = "OpenTabletDriver";
+const DEFAULT_REPO_NAME: &str = "OpenTabletDriver";
 
 const OPEN_COLOUR: Colour = Colour::new(0x238636);
 const RESOLVED_COLOUR: Colour = Colour::new(0x8957e5);
 const CLOSED_COLOUR: Colour = Colour::new(0xda3633);
 
-pub async fn message(ctx: &Context, message: &Message) {
-    if let Some(embeds) = issue_embeds(message).await {
+pub async fn message(data: &Data, ctx: &Context, message: &Message) {
+    if let Some(embeds) = issue_embeds(data, message).await {
         let typing = message.channel_id.start_typing(&ctx.http);
 
-        let content = serenity::CreateMessage::default()
-            .embeds(embeds)
-            .reference_message(message);
-        let _ = message.channel_id.send_message(ctx, content).await;
+        let ctx_id = message.id.get(); // poise context isn't available here.
+        let remove_id = format!("{}remove", ctx_id);
+        let hide_body_id = format!("{}hide_body", ctx_id);
+        let components = serenity::CreateActionRow::Buttons(vec![
+            serenity::CreateButton::new(&remove_id)
+                .label("delete")
+                .style(serenity::ButtonStyle::Danger),
+            serenity::CreateButton::new(&hide_body_id).label("hide body"),
+        ]);
 
+        let content: serenity::CreateMessage = serenity::CreateMessage::default()
+            .embeds(embeds)
+            .reference_message(message)
+            .components(vec![components]);
+        let msg_result = message.channel_id.send_message(ctx, content).await;
         typing.stop();
+
+        let mut msg_deleted = false;
+        let mut body_hid = false;
+        while let Some(press) = serenity::ComponentInteractionCollector::new(ctx)
+            .filter(move |press| press.data.custom_id.starts_with(&ctx_id.to_string()))
+            .timeout(Duration::from_secs(60))
+            .await
+        {
+            // Safe to unwap member because this only runs in guilds.
+            let has_perms = press.member.as_ref().map_or(false, |member| {
+                member.permissions.map_or(false, |member_perms| {
+                    member_perms.contains(Permissions::MANAGE_MESSAGES)
+                })
+            });
+
+            if press.data.custom_id == remove_id
+                && (press.user.id == message.author.id || has_perms)
+            {
+                let _ = press
+                    .create_response(ctx, serenity::CreateInteractionResponse::Acknowledge)
+                    .await;
+                if let Ok(ref msg) = msg_result {
+                    let _ = msg.delete(ctx).await;
+                }
+                msg_deleted = true;
+            }
+
+            if press.data.custom_id == hide_body_id
+                && (press.user.id == message.author.id || has_perms)
+            {
+                if !body_hid {
+                    let mut hid_body_embeds: Vec<CreateEmbed> = Vec::new();
+                    if let Ok(ref msg) = msg_result {
+                        for mut embed in msg.embeds.clone() {
+                            embed.description = None;
+                            let embed: CreateEmbed = embed.clone().into();
+                            hid_body_embeds.push(embed);
+                        }
+                    }
+
+                    let _ = press
+                        .create_response(
+                            ctx,
+                            serenity::CreateInteractionResponse::UpdateMessage(
+                                serenity::CreateInteractionResponseMessage::new()
+                                    .embeds(hid_body_embeds),
+                            ),
+                        )
+                        .await;
+                }
+                body_hid = true;
+            }
+        }
+        // Triggers on timeout.
+        if !msg_deleted {
+            if let Ok(mut msg) = msg_result {
+                let _ = msg
+                    .edit(ctx, serenity::EditMessage::default().components(vec![]))
+                    .await;
+            }
+        }
+        //
     }
 }
 
-async fn issue_embeds(message: &Message) -> Option<Vec<CreateEmbed>> {
+async fn issue_embeds(data: &Data, message: &Message) -> Option<Vec<CreateEmbed>> {
     let mut embeds: Vec<CreateEmbed> = vec![];
     let client = octocrab::instance();
     let ratelimit = client.ratelimit();
 
-    let issues = client.issues(REPO_OWNER, REPO_NAME);
-    let prs = client.pulls(REPO_OWNER, REPO_NAME);
+    let regex = Regex::new(r#" ?([a-z]+)?#([0-9]+[0-9]) ?"#).expect("Expected numbers regex");
 
-    let regex = Regex::new(r#" ?#([0-9]+[0-9]) ?"#).expect("Expected numbers regex");
+    let custom_repos = { data.state.read().unwrap().issue_prefixes.clone() };
+
+    let mut issues = client.issues(DEFAULT_REPO_OWNER, DEFAULT_REPO_NAME);
+    let mut prs = client.pulls(DEFAULT_REPO_OWNER, DEFAULT_REPO_NAME);
 
     for capture in regex.captures_iter(&message.content) {
-        if let Some(m) = capture.get(1) {
+        if let Some(m) = capture.get(2) {
             let issue_num = m.as_str().parse::<u64>().expect("Match is not a number");
+
+            if let Some(repo) = capture.get(1) {
+                let repository = custom_repos.get(repo.as_str());
+                if let Some(repository) = repository {
+                    let (owner, repo) = repository.get();
+
+                    issues = client.issues(owner, repo);
+                    prs = client.pulls(owner, repo);
+                }
+            }
 
             let ratelimit = ratelimit
                 .get()

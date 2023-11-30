@@ -12,8 +12,8 @@ async fn autocomplete_snippet<'a>(
 ) -> impl Stream<Item = String> + 'a {
     let snippet_list: Vec<String> = {
         ctx.data()
-            .snip
-            .lock()
+            .state
+            .read()
             .unwrap()
             .snippets
             .iter()
@@ -65,10 +65,10 @@ pub async fn create_snippet(
 ) -> Result<(), Error> {
     // I really don't like the code I wrote here.
     let embed = {
-        let mut mutex_guard = ctx.data().snip.lock().unwrap();
+        let mut rwlock_guard = ctx.data().state.write().unwrap();
 
-        if let Some(position) = mutex_guard.snippets.iter().position(|s| s.id.eq(&id)) {
-            mutex_guard.snippets.remove(position);
+        if let Some(position) = rwlock_guard.snippets.iter().position(|s| s.id.eq(&id)) {
+            rwlock_guard.snippets.remove(position);
         }
 
         let snippet = Snippet {
@@ -77,16 +77,16 @@ pub async fn create_snippet(
             content: content.replace(r"\n", "\n"),
         };
 
-        mutex_guard.snippets.push(snippet.clone());
+        rwlock_guard.snippets.push(snippet.clone());
 
-        mutex_guard.snippets = mutex_guard.snippets.clone();
+        rwlock_guard.snippets = rwlock_guard.snippets.clone();
         println!("New snippet created '{}: {}'", id, title);
-        mutex_guard.write();
+        rwlock_guard.write();
 
         let mut embed = snippet.embed();
         embed = embed.colour(super::OK_COLOUR);
 
-        if mutex_guard.snippets.len() > 25 {
+        if rwlock_guard.snippets.len() > 25 {
             embed = embed.field(
                 "Warning",
                 "There are more than 25 snippets, some may not appear in the snippet list.",
@@ -123,10 +123,10 @@ pub async fn edit_snippet(
             }
 
             {
-                let mut mutex_guard = ctx.data().snip.lock().unwrap();
-                mutex_guard.snippets.push(snippet.clone());
+                let mut rwlock_guard = ctx.data().state.write().unwrap();
+                rwlock_guard.snippets.push(snippet.clone());
                 println!("Snippet edited '{}: {}'", snippet.title, snippet.content);
-                mutex_guard.write();
+                rwlock_guard.write();
             }
 
             let embed = snippet.embed().colour(super::OK_COLOUR);
@@ -178,7 +178,7 @@ pub async fn delete_snippet(
     track_edits
 )]
 pub async fn list_snippets(ctx: Context<'_>) -> Result<(), Error> {
-    let snippets = { ctx.data().snip.lock().unwrap().snippets.clone() };
+    let snippets = { ctx.data().state.read().unwrap().snippets.clone() };
 
     let mut embed = CreateEmbed::default().title("Snippets").color(Colour::TEAL);
 
@@ -238,9 +238,9 @@ impl Embeddable for Snippet {
 // Exact matches the snippet id and name.
 async fn get_snippet(ctx: &Context<'_>, id: &str) -> Option<Snippet> {
     let data = ctx.data();
-    let mutex_guard = data.snip.lock().unwrap();
+    let rwlock_guard = data.state.read().unwrap();
 
-    mutex_guard
+    rwlock_guard
         .snippets
         .iter()
         .find(|s| s.format_output().eq(id))
@@ -250,9 +250,9 @@ async fn get_snippet(ctx: &Context<'_>, id: &str) -> Option<Snippet> {
 // Matches the snippet by checking if its starts with the id and name.
 async fn get_snippet_lazy(ctx: &Context<'_>, id: &str) -> Option<Snippet> {
     let data = ctx.data();
-    let mutex_guard = data.snip.lock().unwrap();
+    let rwlock_guard = data.state.read().unwrap();
 
-    mutex_guard
+    rwlock_guard
         .snippets
         .iter()
         .find(|s| s.format_output().starts_with(id))
@@ -261,15 +261,15 @@ async fn get_snippet_lazy(ctx: &Context<'_>, id: &str) -> Option<Snippet> {
 
 async fn rm_snippet(ctx: &Context<'_>, snippet: &Snippet) {
     let data = ctx.data();
-    let mut mutex_guard = data.snip.lock().unwrap();
+    let mut rwlock_guard = data.state.write().unwrap();
 
-    let index = mutex_guard
+    let index = rwlock_guard
         .snippets
         .iter()
         .position(|s| s.id == snippet.id)
         .expect("Snippet was not found in vec");
 
     println!("Removing snippet '{}: {}'", snippet.id, snippet.title);
-    mutex_guard.snippets.remove(index);
-    mutex_guard.write();
+    rwlock_guard.snippets.remove(index);
+    rwlock_guard.write();
 }
