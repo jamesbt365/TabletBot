@@ -71,7 +71,7 @@ async fn main() {
 
         skip_checks_for_owners: false,
         event_handler: |ctx, event: &serenity::FullEvent, framework, data| {
-            Box::pin(event_handler(ctx, event.clone(), framework, data))
+            Box::pin(events::event_handler(ctx, event, framework, data))
         },
         ..Default::default()
     };
@@ -94,21 +94,4 @@ async fn main() {
         .unwrap();
 
     client.start().await.unwrap();
-}
-
-pub async fn event_handler(
-    ctx: &serenity::Context,
-    event: serenity::FullEvent,
-    _framework: poise::FrameworkContext<'_, Data, Error>,
-    data: &Data,
-) -> Result<(), Error> {
-    #[allow(clippy::single_match)]
-    match event {
-        serenity::FullEvent::Message { new_message } => {
-            events::message(ctx, new_message, data).await?;
-        }
-        _ => (),
-    }
-
-    Ok(())
 }
