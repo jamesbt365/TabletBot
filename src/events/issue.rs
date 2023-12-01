@@ -1,9 +1,9 @@
+use crate::{structures::Embeddable, Data};
 use ::serenity::builder::CreateEmbedAuthor;
 use octocrab::models::issues::Issue;
 use octocrab::models::pulls::PullRequest;
 use poise::serenity_prelude::{self as serenity, Colour, Context, CreateEmbed, Message};
 use regex::Regex;
-use crate::{structures::Embeddable, Data};
 
 const DEFAULT_REPO_OWNER: &str = "OpenTabletDriver";
 const DEFAULT_REPO_NAME: &str = "OpenTabletDriver";
@@ -32,7 +32,7 @@ async fn issue_embeds(data: &Data, message: &Message) -> Option<Vec<CreateEmbed>
 
     let regex = Regex::new(r#" ?([a-z]+)?#([0-9]+[0-9]) ?"#).expect("Expected numbers regex");
 
-    let custom_repos = {data.state.lock().unwrap().issue_prefixes.clone()};
+    let custom_repos = { data.state.lock().unwrap().issue_prefixes.clone() };
 
     let mut issues = client.issues(DEFAULT_REPO_OWNER, DEFAULT_REPO_NAME);
     let mut prs = client.pulls(DEFAULT_REPO_OWNER, DEFAULT_REPO_NAME);
@@ -72,7 +72,6 @@ async fn issue_embeds(data: &Data, message: &Message) -> Option<Vec<CreateEmbed>
         Some(embeds)
     }
 }
-
 
 trait Document {
     fn get_title(&self) -> String;

@@ -1,6 +1,7 @@
 use crate::{
     commands::{respond_embed, respond_err},
-    Context, Error, structures::RepositoryDetails,
+    structures::RepositoryDetails,
+    Context, Error,
 };
 
 use poise::serenity_prelude::{Colour, CreateEmbed, CreateEmbedFooter};
@@ -100,15 +101,16 @@ pub async fn add_issue_token(
     #[description = "The snippet's title"] owner: String,
     #[description = "The snippet's content"] repository: String,
 ) -> Result<(), Error> {
+    let mut mutex_guard = { ctx.data().state.lock().unwrap() };
 
-    let mut mutex_guard = {ctx.data().state.lock().unwrap()};
-
-    let details = RepositoryDetails {owner, name: repository };
+    let details = RepositoryDetails {
+        owner,
+        name: repository,
+    };
 
     mutex_guard.issue_prefixes.insert(key, details);
 
     mutex_guard.write();
-
 
     Ok(())
 }
