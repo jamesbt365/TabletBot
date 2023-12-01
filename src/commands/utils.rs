@@ -4,7 +4,7 @@ use crate::{
     Context, Error,
 };
 
-use poise::serenity_prelude::{Colour, CreateEmbed, CreateEmbedFooter, Message, EditMessage};
+use poise::serenity_prelude::{Colour, CreateEmbed, CreateEmbedFooter, EditMessage, Message};
 use regex::Regex;
 use serenity::futures::{self, Stream, StreamExt};
 
@@ -118,8 +118,7 @@ pub async fn embed(
 
 /// Create an embed in the current channel.
 ///
-/// Due to some builder troubles, you cannot set image, thumbnail,
-/// color, footer again.
+///
 #[allow(clippy::too_many_arguments)]
 #[poise::command(rename = "edit-embed", slash_command, guild_only)]
 pub async fn edit_embed(
@@ -127,66 +126,134 @@ pub async fn edit_embed(
     #[description = "The message to be edited."] message: Message,
     #[description = "The embed title"] title: Option<String>,
     #[description = "The embed description"] description: Option<String>,
+    #[description = "The color of the embed in hexidecimal form. (ex: ff00ff)"] color: Option<
+        String,
+    >,
     #[description = "The embed url"] url: Option<String>,
+    #[description = "The embed image"] image: Option<String>,
+    #[description = "The embed footer text"] footer: Option<String>,
+    #[description = "The embed thumbnail"] thumbnail: Option<String>,
 ) -> Result<(), Error> {
-
     let mut msg_clone = message.clone();
+    if message.author.id != ctx.cache().current_user().id {
+        respond_err(
+            &ctx,
+            "Cannot edit message!",
+            "I am not the author of the specified message!",
+        )
+        .await;
+    }
+
     if let Some(interaction) = message.interaction {
         if interaction.name == "embed" {
             // Embed for checking reasons.
-            let mut embed = message.embeds[0].clone();
+            let embed = &message.embeds[0];
+            let mut embedb = CreateEmbed::default();
 
             if let Some(title) = title {
                 if title != "_" {
-                    embed.title = Some(title);
-                } else {
-                    embed.title = None;
+                    embedb = embedb.title(title);
                 }
+            } else if let Some(t) = &embed.title {
+                embedb = embedb.title(t);
             }
 
             if let Some(description) = description {
                 if description != "_" {
-                    embed.description = Some(description.replace(r"\n", "\n"));
-                } else {
-                    embed.description = None;
+                    embedb = embedb.description(description);
                 }
+            } else if let Some(d) = &embed.description {
+                embedb = embedb.description(d);
+            }
+
+            if let Some(color) = color {
+                if color != "_" {
+                    match hex::decode(color.to_ascii_lowercase().replace('#', "")) {
+                        Ok(hex_arr) => {
+                            embedb =
+                                embedb.color(Colour::from_rgb(hex_arr[0], hex_arr[1], hex_arr[2]));
+                        }
+                        Err(e) => {
+                            let title = "Invalid color provided";
+                            let content = &format!(
+                                "The color '{}' is not a valid hexadecimal color: {}",
+                                &color, e
+                            );
+                            respond_err(&ctx, title, content).await;
+                        }
+                    }
+                }
+            } else if let Some(c) = &embed.colour {
+                embedb = embedb.color(c.0);
             }
 
             if let Some(url) = url {
                 if url != "_" {
-                    embed.url = Some(url);
-                } else {
-                    embed.url = None;
+                    embedb = embedb.url(url);
                 }
+            } else if let Some(u) = &embed.url {
+                embedb = embedb.url(u);
             }
 
+            if let Some(image) = image {
+                if image != "_" {
+                    embedb = embedb.image(image);
+                }
+            } else if let Some(i) = &embed.image {
+                embedb = embedb.image(i.url.clone());
+            }
 
-            let builder = EditMessage::default().embed(embed.into());
+            if let Some(footer) = footer {
+                if footer != "_" {
+                    embedb = embedb.footer(CreateEmbedFooter::new(footer));
+                }
+            } else if let Some(f) = &embed.footer {
+                embedb = embedb.footer(CreateEmbedFooter::new(f.text.clone()));
+            }
+
+            if let Some(thumbnail) = thumbnail {
+                if thumbnail != "_" {
+                    embedb = embedb.thumbnail(thumbnail);
+                }
+            } else if let Some(t) = &embed.thumbnail {
+                embedb = embedb.thumbnail(t.url.clone());
+            }
+
+            let builder = EditMessage::default().embed(embedb);
 
             match msg_clone.edit(ctx, builder).await {
                 Ok(_) => {
-                    respond_ok(&ctx, "Successfully edited embed", "The message has been edited successfully!").await;
+                    respond_ok(
+                        &ctx,
+                        "Successfully edited embed",
+                        "The message has been edited successfully!",
+                    )
+                    .await;
                 }
                 Err(error) => {
                     // Better error handling later.
                     respond_err(&ctx, "Error while handling message!", &format!("{}", error)).await
                 }
             }
-
-
-        } else  {
-            respond_err(&ctx, "Failure to edit embed", "This message was an interaction, but not an embed interaction!").await;
+        } else {
+            respond_err(
+                &ctx,
+                "Failure to edit embed",
+                "This message was an interaction, but not an embed interaction!",
+            )
+            .await;
         }
     } else {
-        respond_err(&ctx, "Failure to edit embed", "This message is not an interaction!").await;
+        respond_err(
+            &ctx,
+            "Failure to edit embed",
+            "This message is not an interaction!",
+        )
+        .await;
     };
-
-
 
     Ok(())
 }
-
-
 
 /// Adds an issue token
 #[poise::command(rename = "add-issue-token", slash_command, guild_only)]
