@@ -20,8 +20,10 @@ pub async fn message(data: &Data, ctx: &Context, message: &Message) {
 
         let ctx_id = message.id.get(); // poise context isn't available here.
         let remove_id = format!("{}remove", ctx_id);
+        let hide_body_id = format!("{}hide_body", ctx_id);
         let components = serenity::CreateActionRow::Buttons(vec![
-            serenity::CreateButton::new(&remove_id).emoji('❌')
+            serenity::CreateButton::new(&remove_id).label("delete").style(serenity::ButtonStyle::Danger),
+            serenity::CreateButton::new(&hide_body_id).label("hide body")
         ]);
 
         let content: serenity::CreateMessage = serenity::CreateMessage::default()
@@ -31,6 +33,7 @@ pub async fn message(data: &Data, ctx: &Context, message: &Message) {
         typing.stop();
 
         let mut msg_deleted = false;
+        let mut body_hid = false;
         while let Some(press) = serenity::ComponentInteractionCollector::new(ctx)
         .filter(move |press| press.data.custom_id.starts_with(&ctx_id.to_string()))
         .timeout(Duration::from_secs(60))
@@ -48,6 +51,30 @@ pub async fn message(data: &Data, ctx: &Context, message: &Message) {
                     let _ = msg.delete(ctx).await;
                 }
                 msg_deleted = true;
+            }
+
+            if press.data.custom_id == hide_body_id && (press.user.id == message.author.id || has_perms) {
+                if !body_hid {
+
+                    let mut hid_body_embeds: Vec<CreateEmbed> = Vec::new();
+                    if let Ok(ref msg) = msg_result {
+                        for mut embed in msg.embeds.clone() {
+                            embed.description = None;
+                            let embed: CreateEmbed = embed.clone().into();
+                            hid_body_embeds.push(embed);
+                        }
+                    }
+
+                    let _ = press.create_response(
+                        ctx,
+                        serenity::CreateInteractionResponse::UpdateMessage(
+                            serenity::CreateInteractionResponseMessage::new().embeds(hid_body_embeds),
+                        ),
+                    )
+                    .await;
+
+                }
+                body_hid = true;
             }
         }
         // Triggers on timeout.
