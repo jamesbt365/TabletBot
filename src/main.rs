@@ -53,6 +53,7 @@ async fn main() {
             commands::snippets::list_snippets(),
             commands::snippets::edit_snippet(),
             commands::utils::embed(),
+            commands::utils::edit_embed(),
             commands::utils::add_issue_token(),
             commands::utils::remove_issue_token(),
             commands::utils::list_tokens(),

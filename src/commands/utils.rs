@@ -4,7 +4,7 @@ use crate::{
     Context, Error,
 };
 
-use poise::serenity_prelude::{Colour, CreateEmbed, CreateEmbedFooter};
+use poise::serenity_prelude::{Colour, CreateEmbed, CreateEmbedFooter, Message, EditMessage};
 use regex::Regex;
 use serenity::futures::{self, Stream, StreamExt};
 
@@ -115,6 +115,78 @@ pub async fn embed(
 
     Ok(())
 }
+
+/// Create an embed in the current channel.
+///
+/// Due to some builder troubles, you cannot set image, thumbnail,
+/// color, footer again.
+#[allow(clippy::too_many_arguments)]
+#[poise::command(rename = "edit-embed", slash_command, guild_only)]
+pub async fn edit_embed(
+    ctx: Context<'_>,
+    #[description = "The message to be edited."] message: Message,
+    #[description = "The embed title"] title: Option<String>,
+    #[description = "The embed description"] description: Option<String>,
+    #[description = "The embed url"] url: Option<String>,
+) -> Result<(), Error> {
+
+    let mut msg_clone = message.clone();
+    if let Some(interaction) = message.interaction {
+        if interaction.name == "embed" {
+            // Embed for checking reasons.
+            let mut embed = message.embeds[0].clone();
+
+            if let Some(title) = title {
+                if title != "_" {
+                    embed.title = Some(title);
+                } else {
+                    embed.title = None;
+                }
+            }
+
+            if let Some(description) = description {
+                if description != "_" {
+                    embed.description = Some(description.replace(r"\n", "\n"));
+                } else {
+                    embed.description = None;
+                }
+            }
+
+            if let Some(url) = url {
+                if url != "_" {
+                    embed.url = Some(url);
+                } else {
+                    embed.url = None;
+                }
+            }
+
+
+            let builder = EditMessage::default().embed(embed.into());
+
+            match msg_clone.edit(ctx, builder).await {
+                Ok(_) => {
+                    respond_ok(&ctx, "Successfully edited embed", "The message has been edited successfully!").await;
+                }
+                Err(error) => {
+                    // Better error handling later.
+                    respond_err(&ctx, "Error while handling message!", &format!("{}", error)).await
+                }
+            }
+
+
+        } else  {
+            respond_err(&ctx, "Failure to edit embed", "This message was an interaction, but not an embed interaction!").await;
+        }
+    } else {
+        respond_err(&ctx, "Failure to edit embed", "This message is not an interaction!").await;
+    };
+
+
+
+    Ok(())
+}
+
+
 
 /// Adds an issue token
 #[poise::command(rename = "add-issue-token", slash_command, guild_only)]
