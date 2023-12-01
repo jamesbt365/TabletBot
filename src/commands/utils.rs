@@ -181,21 +181,19 @@ pub async fn remove_issue_token(
     // I know we could just do rm_repo, but that doesn't return a result.
     // I may change this in the future, but before I do that I'll probably
     // impl a solution directly into the types?
+
+    // not sure why I have to do this, it won't settle otherwise.
+    let key_str = format!("The issue token with the key '{}' has been removed", key);
     match get_repo_details(&ctx, &key).await {
         Some(_) => {
             rm_repo(&ctx, &key).await;
 
-            respond_ok(
-                &ctx,
-                "Successfully removed token!",
-                "The issue token with the key '{key}' has been removed!",
-            )
-            .await;
+            respond_ok(&ctx, "Successfully removed token!", &key_str).await;
         }
         None => {
-            let title = &"Failure to find issue token";
-            let content = &&format!("The key '{key}' does not exist.");
-            respond_err(&ctx, title, content).await
+            let title = "Failure to find issue token";
+            let content = format!("The key '{}' does not exist.", key);
+            respond_err(&ctx, title, &content).await;
         }
     };
 
