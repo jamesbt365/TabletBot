@@ -3,7 +3,7 @@ pub(crate) mod events;
 pub(crate) mod formatting;
 pub(crate) mod structures;
 
-use std::sync::Mutex;
+use std::sync::RwLock;
 use std::time::Duration;
 use std::{env, sync::Arc};
 
@@ -13,7 +13,7 @@ use structures::BotState;
 
 pub struct Data {
     pub octocrab: Arc<Octocrab>,
-    pub state: Mutex<BotState>,
+    pub state: RwLock<BotState>,
 }
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
@@ -41,7 +41,7 @@ async fn main() {
 
     let octocrab = octocrab::initialise(octo_builder).expect("Failed to build github client");
 
-    let state = Mutex::new(BotState::read());
+    let state = RwLock::new(BotState::read());
 
     let options = poise::FrameworkOptions {
         commands: vec![

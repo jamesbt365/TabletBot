@@ -15,7 +15,7 @@ async fn autocomplete_key<'a>(
     let snippet_list: Vec<String> = {
         ctx.data()
             .state
-            .lock()
+            .read()
             .unwrap()
             .issue_prefixes
             .iter()
@@ -146,18 +146,18 @@ pub async fn add_issue_token(
     }
 
     {
-        let mut mutex_guard = { ctx.data().state.lock().unwrap() };
+        let mut rwlock_guard = { ctx.data().state.write().unwrap() };
         let details = RepositoryDetails {
             owner: owner.clone(),
             name: repository.clone(),
         };
 
-        mutex_guard.issue_prefixes.insert(key.clone(), details);
+        rwlock_guard.issue_prefixes.insert(key.clone(), details);
         println!(
             "Successfully added issue token {} for **{}/{}**",
             key, owner, repository
         );
-        mutex_guard.write();
+        rwlock_guard.write();
     };
 
     respond_ok(
@@ -209,7 +209,7 @@ pub async fn remove_issue_token(
     track_edits
 )]
 pub async fn list_tokens(ctx: Context<'_>) -> Result<(), Error> {
-    let tokens = { ctx.data().state.lock().unwrap().issue_prefixes.clone() };
+    let tokens = { ctx.data().state.read().unwrap().issue_prefixes.clone() };
 
     let mut embed = CreateEmbed::default()
         .title("Issue tokens")
@@ -232,14 +232,14 @@ pub async fn list_tokens(ctx: Context<'_>) -> Result<(), Error> {
 
 async fn get_repo_details(ctx: &Context<'_>, key: &str) -> Option<RepositoryDetails> {
     let data = ctx.data();
-    let mutex_guard = data.state.lock().unwrap();
+    let rwlock_guard = data.state.read().unwrap();
 
-    mutex_guard.issue_prefixes.get(key).cloned()
+    rwlock_guard.issue_prefixes.get(key).cloned()
 }
 
 async fn rm_repo(ctx: &Context<'_>, key: &str) {
     let data = ctx.data();
-    let mut mutex_guard = data.state.lock().unwrap();
+    let mut rwlock_guard = data.state.write().unwrap();
 
-    mutex_guard.issue_prefixes.remove(key);
+    rwlock_guard.issue_prefixes.remove(key);
 }

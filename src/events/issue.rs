@@ -32,7 +32,7 @@ async fn issue_embeds(data: &Data, message: &Message) -> Option<Vec<CreateEmbed>
 
     let regex = Regex::new(r#" ?([a-z]+)?#([0-9]+[0-9]) ?"#).expect("Expected numbers regex");
 
-    let custom_repos = { data.state.lock().unwrap().issue_prefixes.clone() };
+    let custom_repos = { data.state.read().unwrap().issue_prefixes.clone() };
 
     let mut issues = client.issues(DEFAULT_REPO_OWNER, DEFAULT_REPO_NAME);
     let mut prs = client.pulls(DEFAULT_REPO_OWNER, DEFAULT_REPO_NAME);
