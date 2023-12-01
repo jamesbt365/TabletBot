@@ -3,21 +3,20 @@ use octocrab::models::issues::Issue;
 use octocrab::models::pulls::PullRequest;
 use poise::serenity_prelude::{self as serenity, Colour, Context, CreateEmbed, Message};
 use regex::Regex;
+use crate::{structures::Embeddable, Data};
 
-use crate::structures::Embeddable;
-
-const REPO_OWNER: &str = "OpenTabletDriver";
-const REPO_NAME: &str = "OpenTabletDriver";
+const DEFAULT_REPO_OWNER: &str = "OpenTabletDriver";
+const DEFAULT_REPO_NAME: &str = "OpenTabletDriver";
 
 const OPEN_COLOUR: Colour = Colour::new(0x238636);
 const RESOLVED_COLOUR: Colour = Colour::new(0x8957e5);
 const CLOSED_COLOUR: Colour = Colour::new(0xda3633);
 
-pub async fn message(ctx: &Context, message: &Message) {
-    if let Some(embeds) = issue_embeds(message).await {
+pub async fn message(data: &Data, ctx: &Context, message: &Message) {
+    if let Some(embeds) = issue_embeds(data, message).await {
         let typing = message.channel_id.start_typing(&ctx.http);
 
-        let content = serenity::CreateMessage::default()
+        let content: serenity::CreateMessage = serenity::CreateMessage::default()
             .embeds(embeds)
             .reference_message(message);
         let _ = message.channel_id.send_message(ctx, content).await;
@@ -26,19 +25,31 @@ pub async fn message(ctx: &Context, message: &Message) {
     }
 }
 
-async fn issue_embeds(message: &Message) -> Option<Vec<CreateEmbed>> {
+async fn issue_embeds(data: &Data, message: &Message) -> Option<Vec<CreateEmbed>> {
     let mut embeds: Vec<CreateEmbed> = vec![];
     let client = octocrab::instance();
     let ratelimit = client.ratelimit();
 
-    let issues = client.issues(REPO_OWNER, REPO_NAME);
-    let prs = client.pulls(REPO_OWNER, REPO_NAME);
+    let regex = Regex::new(r#" ?([a-z]+)?#([0-9]+[0-9]) ?"#).expect("Expected numbers regex");
 
-    let regex = Regex::new(r#" ?#([0-9]+[0-9]) ?"#).expect("Expected numbers regex");
+    let custom_repos = {data.state.lock().unwrap().issue_prefixes.clone()};
+
+    let mut issues = client.issues(DEFAULT_REPO_OWNER, DEFAULT_REPO_NAME);
+    let mut prs = client.pulls(DEFAULT_REPO_OWNER, DEFAULT_REPO_NAME);
 
     for capture in regex.captures_iter(&message.content) {
-        if let Some(m) = capture.get(1) {
+        if let Some(m) = capture.get(2) {
             let issue_num = m.as_str().parse::<u64>().expect("Match is not a number");
+
+            if let Some(repo) = capture.get(1) {
+                let repository = custom_repos.get(repo.as_str());
+                if let Some(repository) = repository {
+                    let (owner, repo) = repository.get();
+
+                    issues = client.issues(owner, repo);
+                    prs = client.pulls(owner, repo);
+                }
+            }
 
             let ratelimit = ratelimit
                 .get()
@@ -61,6 +72,7 @@ async fn issue_embeds(message: &Message) -> Option<Vec<CreateEmbed>> {
         Some(embeds)
     }
 }
+
 
 trait Document {
     fn get_title(&self) -> String;

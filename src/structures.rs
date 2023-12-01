@@ -3,6 +3,7 @@ use serde_json::{from_reader, to_writer_pretty};
 use serenity::builder::CreateEmbed;
 use serenity::prelude::TypeMapKey;
 use std::env;
+use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
 use std::path::Path;
 
@@ -24,15 +25,30 @@ impl Snippet {
 }
 
 #[derive(Deserialize, Serialize, Default)]
-pub struct SnippetState {
+pub struct BotState {
     pub snippets: Vec<Snippet>,
+    pub issue_prefixes: HashMap<String, RepositoryDetails>
 }
 
-impl TypeMapKey for SnippetState {
-    type Value = SnippetState;
+impl TypeMapKey for BotState {
+    type Value = BotState;
 }
 
-impl SnippetState {
+#[derive(Deserialize, Clone, Serialize, Default)]
+pub struct RepositoryDetails {
+    pub owner: String,
+    pub name: String,
+}
+
+impl RepositoryDetails {
+    pub fn get(&self) -> (&String, &String) {
+        (&self.owner, &self.name)
+    }
+}
+
+
+
+impl BotState {
     pub fn get_path() -> String {
         let pwd = env::current_dir().unwrap().to_string_lossy().to_string();
         let data_root = env::var("TABLETBOT_DATA").unwrap_or(pwd);
@@ -43,7 +59,7 @@ impl SnippetState {
         }
     }
 
-    pub fn read() -> SnippetState {
+    pub fn read() -> BotState {
         let path_str = Self::get_path();
         let path = Path::new(&path_str);
 
@@ -51,7 +67,7 @@ impl SnippetState {
             let file = File::open(path).unwrap();
             from_reader(file).unwrap()
         } else {
-            SnippetState::default()
+            BotState::default()
         }
     }
 

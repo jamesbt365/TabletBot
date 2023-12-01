@@ -1,6 +1,6 @@
 use crate::{
     commands::{respond_embed, respond_err},
-    Context, Error,
+    Context, Error, structures::RepositoryDetails,
 };
 
 use poise::serenity_prelude::{Colour, CreateEmbed, CreateEmbedFooter};
@@ -88,6 +88,27 @@ pub async fn embed(
     }
 
     respond_embed(&ctx, embed, false).await;
+
+    Ok(())
+}
+
+/// Adds an issue token
+#[poise::command(rename = "add-issue-token", slash_command, prefix_command, guild_only)]
+pub async fn add_issue_token(
+    ctx: Context<'_>,
+    #[description = "The snippet's id"] key: String,
+    #[description = "The snippet's title"] owner: String,
+    #[description = "The snippet's content"] repository: String,
+) -> Result<(), Error> {
+
+    let mut mutex_guard = {ctx.data().state.lock().unwrap()};
+
+    let details = RepositoryDetails {owner, name: repository };
+
+    mutex_guard.issue_prefixes.insert(key, details);
+
+    mutex_guard.write();
+
 
     Ok(())
 }

@@ -12,7 +12,7 @@ async fn autocomplete_snippet<'a>(
 ) -> impl Stream<Item = String> + 'a {
     let snippet_list: Vec<String> = {
         ctx.data()
-            .snip
+            .state
             .lock()
             .unwrap()
             .snippets
@@ -65,7 +65,7 @@ pub async fn create_snippet(
 ) -> Result<(), Error> {
     // I really don't like the code I wrote here.
     let embed = {
-        let mut mutex_guard = ctx.data().snip.lock().unwrap();
+        let mut mutex_guard = ctx.data().state.lock().unwrap();
 
         if let Some(position) = mutex_guard.snippets.iter().position(|s| s.id.eq(&id)) {
             mutex_guard.snippets.remove(position);
@@ -123,7 +123,7 @@ pub async fn edit_snippet(
             }
 
             {
-                let mut mutex_guard = ctx.data().snip.lock().unwrap();
+                let mut mutex_guard = ctx.data().state.lock().unwrap();
                 mutex_guard.snippets.push(snippet.clone());
                 println!("Snippet edited '{}: {}'", snippet.title, snippet.content);
                 mutex_guard.write();
@@ -178,7 +178,7 @@ pub async fn delete_snippet(
     track_edits
 )]
 pub async fn list_snippets(ctx: Context<'_>) -> Result<(), Error> {
-    let snippets = { ctx.data().snip.lock().unwrap().snippets.clone() };
+    let snippets = { ctx.data().state.lock().unwrap().snippets.clone() };
 
     let mut embed = CreateEmbed::default().title("Snippets").color(Colour::TEAL);
 
@@ -238,7 +238,7 @@ impl Embeddable for Snippet {
 // Exact matches the snippet id and name.
 async fn get_snippet(ctx: &Context<'_>, id: &str) -> Option<Snippet> {
     let data = ctx.data();
-    let mutex_guard = data.snip.lock().unwrap();
+    let mutex_guard = data.state.lock().unwrap();
 
     mutex_guard
         .snippets
@@ -250,7 +250,7 @@ async fn get_snippet(ctx: &Context<'_>, id: &str) -> Option<Snippet> {
 // Matches the snippet by checking if its starts with the id and name.
 async fn get_snippet_lazy(ctx: &Context<'_>, id: &str) -> Option<Snippet> {
     let data = ctx.data();
-    let mutex_guard = data.snip.lock().unwrap();
+    let mutex_guard = data.state.lock().unwrap();
 
     mutex_guard
         .snippets
@@ -261,7 +261,7 @@ async fn get_snippet_lazy(ctx: &Context<'_>, id: &str) -> Option<Snippet> {
 
 async fn rm_snippet(ctx: &Context<'_>, snippet: &Snippet) {
     let data = ctx.data();
-    let mut mutex_guard = data.snip.lock().unwrap();
+    let mut mutex_guard = data.state.lock().unwrap();
 
     let index = mutex_guard
         .snippets
