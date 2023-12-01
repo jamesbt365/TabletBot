@@ -4,7 +4,9 @@ use crate::{structures::Embeddable, Data};
 use ::serenity::builder::CreateEmbedAuthor;
 use octocrab::models::issues::Issue;
 use octocrab::models::pulls::PullRequest;
-use poise::serenity_prelude::{self as serenity, Colour, Context, CreateEmbed, Message, Permissions};
+use poise::serenity_prelude::{
+    self as serenity, Colour, Context, CreateEmbed, Message, Permissions,
+};
 use regex::Regex;
 
 const DEFAULT_REPO_OWNER: &str = "OpenTabletDriver";
@@ -22,22 +24,26 @@ pub async fn message(data: &Data, ctx: &Context, message: &Message) {
         let remove_id = format!("{}remove", ctx_id);
         let hide_body_id = format!("{}hide_body", ctx_id);
         let components = serenity::CreateActionRow::Buttons(vec![
-            serenity::CreateButton::new(&remove_id).label("delete").style(serenity::ButtonStyle::Danger),
-            serenity::CreateButton::new(&hide_body_id).label("hide body")
+            serenity::CreateButton::new(&remove_id)
+                .label("delete")
+                .style(serenity::ButtonStyle::Danger),
+            serenity::CreateButton::new(&hide_body_id).label("hide body"),
         ]);
 
         let content: serenity::CreateMessage = serenity::CreateMessage::default()
             .embeds(embeds)
-            .reference_message(message).components(vec![components]);
+            .reference_message(message)
+            .components(vec![components]);
         let msg_result = message.channel_id.send_message(ctx, content).await;
         typing.stop();
 
         let mut msg_deleted = false;
         let mut body_hid = false;
         while let Some(press) = serenity::ComponentInteractionCollector::new(ctx)
-        .filter(move |press| press.data.custom_id.starts_with(&ctx_id.to_string()))
-        .timeout(Duration::from_secs(60))
-        .await {
+            .filter(move |press| press.data.custom_id.starts_with(&ctx_id.to_string()))
+            .timeout(Duration::from_secs(60))
+            .await
+        {
             // Safe to unwap member because this only runs in guilds.
             let has_perms = press.member.as_ref().map_or(false, |member| {
                 member.permissions.map_or(false, |member_perms| {
@@ -45,17 +51,22 @@ pub async fn message(data: &Data, ctx: &Context, message: &Message) {
                 })
             });
 
-            if press.data.custom_id == remove_id && (press.user.id == message.author.id || has_perms) {
-                let _ = press.create_response(ctx, serenity::CreateInteractionResponse::Acknowledge).await;
+            if press.data.custom_id == remove_id
+                && (press.user.id == message.author.id || has_perms)
+            {
+                let _ = press
+                    .create_response(ctx, serenity::CreateInteractionResponse::Acknowledge)
+                    .await;
                 if let Ok(ref msg) = msg_result {
                     let _ = msg.delete(ctx).await;
                 }
                 msg_deleted = true;
             }
 
-            if press.data.custom_id == hide_body_id && (press.user.id == message.author.id || has_perms) {
+            if press.data.custom_id == hide_body_id
+                && (press.user.id == message.author.id || has_perms)
+            {
                 if !body_hid {
-
                     let mut hid_body_embeds: Vec<CreateEmbed> = Vec::new();
                     if let Ok(ref msg) = msg_result {
                         for mut embed in msg.embeds.clone() {
@@ -65,14 +76,15 @@ pub async fn message(data: &Data, ctx: &Context, message: &Message) {
                         }
                     }
 
-                    let _ = press.create_response(
-                        ctx,
-                        serenity::CreateInteractionResponse::UpdateMessage(
-                            serenity::CreateInteractionResponseMessage::new().embeds(hid_body_embeds),
-                        ),
-                    )
-                    .await;
-
+                    let _ = press
+                        .create_response(
+                            ctx,
+                            serenity::CreateInteractionResponse::UpdateMessage(
+                                serenity::CreateInteractionResponseMessage::new()
+                                    .embeds(hid_body_embeds),
+                            ),
+                        )
+                        .await;
                 }
                 body_hid = true;
             }
@@ -80,12 +92,12 @@ pub async fn message(data: &Data, ctx: &Context, message: &Message) {
         // Triggers on timeout.
         if !msg_deleted {
             if let Ok(mut msg) = msg_result {
-                let _ = msg.edit(ctx, serenity::EditMessage::default().components(vec![])).await;
+                let _ = msg
+                    .edit(ctx, serenity::EditMessage::default().components(vec![]))
+                    .await;
             }
-
         }
         //
-
     }
 }
 
