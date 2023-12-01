@@ -14,7 +14,7 @@ pub async fn event_handler(
     #[allow(clippy::single_match)]
     match event {
         serenity::FullEvent::Message { new_message } => {
-            if !new_message.author.bot {
+            if !new_message.author.bot && new_message.guild_id.is_some() {
                 issue::message(data, ctx, new_message).await;
                 code::message(ctx, new_message).await;
             }
