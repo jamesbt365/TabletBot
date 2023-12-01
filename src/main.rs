@@ -54,6 +54,8 @@ async fn main() {
             commands::snippets::edit_snippet(),
             commands::utils::embed(),
             commands::utils::add_issue_token(),
+            commands::utils::remove_issue_token(),
+            commands::utils::list_tokens(),
         ],
         prefix_options: poise::PrefixFrameworkOptions {
             prefix: Some("!".into()),

@@ -1,10 +1,33 @@
 use crate::{
-    commands::{respond_embed, respond_err},
+    commands::{respond_embed, respond_err, respond_ok},
     structures::RepositoryDetails,
     Context, Error,
 };
 
 use poise::serenity_prelude::{Colour, CreateEmbed, CreateEmbedFooter};
+use regex::Regex;
+use serenity::futures::{self, Stream, StreamExt};
+
+async fn autocomplete_key<'a>(
+    ctx: Context<'a>,
+    partial: &'a str,
+) -> impl Stream<Item = String> + 'a {
+    let snippet_list: Vec<String> = {
+        ctx.data()
+            .state
+            .lock()
+            .unwrap()
+            .issue_prefixes
+            .iter()
+            .take(25)
+            .map(|s| s.0.clone())
+            .collect()
+    };
+
+    futures::stream::iter(snippet_list)
+        .filter(move |name| futures::future::ready(name.starts_with(partial)))
+        .map(|name| name.to_string())
+}
 
 /// Create an embed in the current channel.
 #[allow(clippy::too_many_arguments)]
@@ -94,23 +117,131 @@ pub async fn embed(
 }
 
 /// Adds an issue token
-#[poise::command(rename = "add-issue-token", slash_command, prefix_command, guild_only)]
+#[poise::command(rename = "add-issue-token", slash_command, guild_only)]
 pub async fn add_issue_token(
     ctx: Context<'_>,
-    #[description = "The snippet's id"] key: String,
-    #[description = "The snippet's title"] owner: String,
-    #[description = "The snippet's content"] repository: String,
+    #[description = "The key to the issue token in a lowercase alphabetic string"] key: String,
+    #[description = "The owner of the repository."] owner: String,
+    #[description = "The respository name."] repository: String,
 ) -> Result<(), Error> {
-    let mut mutex_guard = { ctx.data().state.lock().unwrap() };
+    let key_regex = Regex::new(r"[a-z+]+$").unwrap();
+    let repo_details_regex = Regex::new(r"^[a-zA-Z0-9](?:[a-zA-Z0-9.-]*[a-zA-Z0-9])?$").unwrap();
+    if !key_regex.is_match(&key) {
+        respond_err(
+            &ctx,
+            "Issue token parsing error",
+            "The key is limited to lowercase letters only.",
+        )
+        .await;
+        return Ok(());
+    }
+    if !repo_details_regex.is_match(&key) || !repo_details_regex.is_match(&repository) {
+        respond_err(
+            &ctx,
+            "Issue token parsing error",
+            "Your inputs for owner and repository name must be valid.",
+        )
+        .await;
+        return Ok(());
+    }
 
-    let details = RepositoryDetails {
-        owner,
-        name: repository,
+    {
+        let mut mutex_guard = { ctx.data().state.lock().unwrap() };
+        let details = RepositoryDetails {
+            owner: owner.clone(),
+            name: repository.clone(),
+        };
+
+        mutex_guard.issue_prefixes.insert(key.clone(), details);
+        println!(
+            "Successfully added issue token {} for **{}/{}**",
+            key, owner, repository
+        );
+        mutex_guard.write();
     };
 
-    mutex_guard.issue_prefixes.insert(key, details);
-
-    mutex_guard.write();
+    respond_ok(
+        &ctx,
+        "Successfully added issue token",
+        &format!("{}: {}/{}", key, owner, repository),
+    )
+    .await;
 
     Ok(())
+}
+
+/// Removes an issue token.
+#[poise::command(rename = "remove-issue-token", slash_command, guild_only)]
+pub async fn remove_issue_token(
+    ctx: Context<'_>,
+    #[autocomplete = "autocomplete_key"]
+    #[description = "The issue token key."]
+    key: String,
+) -> Result<(), Error> {
+    // I know we could just do rm_repo, but that doesn't return a result.
+    // I may change this in the future, but before I do that I'll probably
+    // impl a solution directly into the types?
+    match get_repo_details(&ctx, &key).await {
+        Some(_) => {
+            rm_repo(&ctx, &key).await;
+
+            respond_ok(
+                &ctx,
+                "Successfully removed token!",
+                "The issue token with the key '{key}' has been removed!",
+            )
+            .await;
+        }
+        None => {
+            let title = &"Failure to find issue token";
+            let content = &&format!("The key '{key}' does not exist.");
+            respond_err(&ctx, title, content).await
+        }
+    };
+
+    Ok(())
+}
+
+/// Lists all snippets
+#[poise::command(
+    rename = "list-tokens",
+    slash_command,
+    prefix_command,
+    guild_only,
+    track_edits
+)]
+pub async fn list_tokens(ctx: Context<'_>) -> Result<(), Error> {
+    let tokens = { ctx.data().state.lock().unwrap().issue_prefixes.clone() };
+
+    let mut embed = CreateEmbed::default()
+        .title("Issue tokens")
+        .color(Colour::TEAL);
+
+    // fields are limited to 25 max, we can't display more than 25 snippets in the snippets command
+    // due to a discord limitation.
+    for token in tokens.iter().take(25) {
+        embed = embed.field(
+            format!("**{}**", token.0),
+            format!("{}/{}", token.1.owner, token.1.name),
+            false,
+        );
+    }
+
+    ctx.send(poise::CreateReply::default().embed(embed)).await?;
+
+    Ok(())
+}
+
+async fn get_repo_details(ctx: &Context<'_>, key: &str) -> Option<RepositoryDetails> {
+    let data = ctx.data();
+    let mutex_guard = data.state.lock().unwrap();
+
+    mutex_guard.issue_prefixes.get(key).cloned()
+}
+
+async fn rm_repo(ctx: &Context<'_>, key: &str) {
+    let data = ctx.data();
+    let mut mutex_guard = data.state.lock().unwrap();
+
+    mutex_guard.issue_prefixes.remove(key);
 }
