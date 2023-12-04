@@ -45,6 +45,7 @@ pub async fn message(data: &Data, ctx: &Context, message: &Message) {
             .await
         {
             // Safe to unwap member because this only runs in guilds.
+            // The only way this could go wrong if cache isn't ready? (fresh bot restart)
             let has_perms = press.member.as_ref().map_or(false, |member| {
                 member.permissions.map_or(false, |member_perms| {
                     member_perms.contains(Permissions::MANAGE_MESSAGES)
@@ -106,7 +107,8 @@ async fn issue_embeds(data: &Data, message: &Message) -> Option<Vec<CreateEmbed>
     let client = octocrab::instance();
     let ratelimit = client.ratelimit();
 
-    let regex = Regex::new(r#" ?([a-z]+)?#([0-9]+[0-9]) ?"#).expect("Expected numbers regex");
+    let regex =
+        Regex::new(r#" ?([a-zA-Z0-9-_.]+)?#([0-9]+[0-9]) ?"#).expect("Expected numbers regex");
 
     let custom_repos = { data.state.read().unwrap().issue_prefixes.clone() };
 
@@ -118,7 +120,7 @@ async fn issue_embeds(data: &Data, message: &Message) -> Option<Vec<CreateEmbed>
             let issue_num = m.as_str().parse::<u64>().expect("Match is not a number");
 
             if let Some(repo) = capture.get(1) {
-                let repository = custom_repos.get(repo.as_str());
+                let repository = custom_repos.get(&repo.as_str().to_lowercase());
                 if let Some(repository) = repository {
                     let (owner, repo) = repository.get();
 

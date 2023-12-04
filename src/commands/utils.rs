@@ -255,30 +255,30 @@ pub async fn edit_embed(
     Ok(())
 }
 
-/// Adds an issue token
-#[poise::command(rename = "add-issue-token", slash_command, guild_only)]
-pub async fn add_issue_token(
+/// Adds a repository token
+#[poise::command(rename = "add-repository", slash_command, guild_only)]
+pub async fn add_repo(
     ctx: Context<'_>,
-    #[description = "The key to the issue token in a lowercase alphabetic string"] key: String,
+    #[description = "The key to the repository in a lowercase alphabetic string"] key: String,
     #[description = "The owner of the repository."] owner: String,
     #[description = "The respository name."] repository: String,
 ) -> Result<(), Error> {
     let key_regex = Regex::new(r"[a-z+]+$").unwrap();
-    let repo_details_regex = Regex::new(r"^[a-zA-Z0-9](?:[a-zA-Z0-9.-]*[a-zA-Z0-9])?$").unwrap();
+    let repo_details_regex = Regex::new(r"^([a-zA-Z0-9-_]+)*$").unwrap();
     if !key_regex.is_match(&key) {
         respond_err(
             &ctx,
-            "Issue token parsing error",
-            "The key is limited to lowercase letters only.",
+            "Key parsing error",
+            "The key can only lowercase ASCII letters, digits, and the characters ., -, and _.",
         )
         .await;
         return Ok(());
     }
-    if !repo_details_regex.is_match(&key) || !repo_details_regex.is_match(&repository) {
+    if !repo_details_regex.is_match(&owner) || !repo_details_regex.is_match(&repository) {
         respond_err(
             &ctx,
-            "Issue token parsing error",
-            "Your inputs for owner and repository name must be valid.",
+            "Repository details parsing error",
+            "Your inputs for owner and repository name must be valid repository names.",
         )
         .await;
         return Ok(());
@@ -291,10 +291,14 @@ pub async fn add_issue_token(
             name: repository.clone(),
         };
 
-        rwlock_guard.issue_prefixes.insert(key.clone(), details);
+        rwlock_guard
+            .issue_prefixes
+            .insert(key.clone().to_lowercase(), details);
         println!(
-            "Successfully added issue token {} for **{}/{}**",
-            key, owner, repository
+            "Successfully added repository {} for **{}/{}**",
+            key.to_lowercase(),
+            owner,
+            repository
         );
         rwlock_guard.write();
     };
@@ -309,12 +313,12 @@ pub async fn add_issue_token(
     Ok(())
 }
 
-/// Removes an issue token.
-#[poise::command(rename = "remove-issue-token", slash_command, guild_only)]
-pub async fn remove_issue_token(
+/// Removes a repository
+#[poise::command(rename = "remove-repository", slash_command, guild_only)]
+pub async fn remove_repo(
     ctx: Context<'_>,
     #[autocomplete = "autocomplete_key"]
-    #[description = "The issue token key."]
+    #[description = "The repository key."]
     key: String,
 ) -> Result<(), Error> {
     // I know we could just do rm_repo, but that doesn't return a result.
@@ -322,15 +326,15 @@ pub async fn remove_issue_token(
     // impl a solution directly into the types?
 
     // not sure why I have to do this, it won't settle otherwise.
-    let key_str = format!("The issue token with the key '{}' has been removed", key);
+    let key_str = format!("The repository with the key '{}' has been removed", key);
     match get_repo_details(&ctx, &key).await {
         Some(_) => {
             rm_repo(&ctx, &key).await;
 
-            respond_ok(&ctx, "Successfully removed token!", &key_str).await;
+            respond_ok(&ctx, "Successfully removed repository!", &key_str).await;
         }
         None => {
-            let title = "Failure to find issue token";
+            let title = "Failure to find repository";
             let content = format!("The key '{}' does not exist.", key);
             respond_err(&ctx, title, &content).await;
         }
@@ -339,16 +343,43 @@ pub async fn remove_issue_token(
     Ok(())
 }
 
-/// Lists all snippets
+/// Lists all repositories
 #[poise::command(
-    rename = "list-tokens",
+    rename = "list-repositories",
+    aliases("repos-list", "list-repos", "repos"),
     slash_command,
     prefix_command,
     guild_only,
     track_edits
 )]
-pub async fn list_tokens(ctx: Context<'_>) -> Result<(), Error> {
+pub async fn list_repos(ctx: Context<'_>) -> Result<(), Error> {
     let tokens = { ctx.data().state.read().unwrap().issue_prefixes.clone() };
+
+    if tokens.is_empty() {
+        respond_err(
+            &ctx,
+            "Cannot send list of repositories",
+            "There are no repositories to list!",
+        )
+        .await;
+        return Ok(());
+    }
+
+    let pages: Vec<Vec<(String, String, bool)>> = tokens
+        .iter()
+        .map(|token| {
+            (
+                token.0.clone(),
+                format!("{}/{}", token.1.name, token.1.owner),
+                true,
+            )
+        })
+        .collect::<Vec<(String, String, bool)>>()
+        .chunks(25)
+        .map(|chunk| chunk.to_vec())
+        .collect();
+
+    super::paginate_lists(ctx, &pages, "Repositories").await?;
 
     let mut embed = CreateEmbed::default()
         .title("Issue tokens")
@@ -356,7 +387,7 @@ pub async fn list_tokens(ctx: Context<'_>) -> Result<(), Error> {
 
     // fields are limited to 25 max, we can't display more than 25 snippets in the snippets command
     // due to a discord limitation.
-    for token in tokens.iter().take(25) {
+    for token in tokens {
         embed = embed.field(
             format!("**{}**", token.0),
             format!("{}/{}", token.1.owner, token.1.name),

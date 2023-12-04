@@ -4,7 +4,7 @@ use crate::{
     Context, Error,
 };
 use ::serenity::futures::{Stream, StreamExt};
-use poise::serenity_prelude::{futures, Colour, CreateAttachment, CreateEmbed};
+use poise::serenity_prelude::{futures, CreateAttachment, CreateEmbed};
 
 async fn autocomplete_snippet<'a>(
     ctx: Context<'a>,
@@ -142,11 +142,11 @@ pub async fn edit_snippet(
     Ok(())
 }
 
-/// Delete snippet
+/// Removes a snippet
 ///
 /// Must use the full formatted snippet name (id: title)
-#[poise::command(rename = "delete-snippet", slash_command, guild_only)]
-pub async fn delete_snippet(
+#[poise::command(rename = "remove-snippet", slash_command, guild_only)]
+pub async fn remove_snippet(
     ctx: Context<'_>,
     #[autocomplete = "autocomplete_snippet"]
     #[description = "The snippet's id"]
@@ -172,6 +172,7 @@ pub async fn delete_snippet(
 /// Lists all snippets
 #[poise::command(
     rename = "list-snippets",
+    aliases("list-snippet", "snippets"),
     slash_command,
     prefix_command,
     guild_only,
@@ -180,15 +181,25 @@ pub async fn delete_snippet(
 pub async fn list_snippets(ctx: Context<'_>) -> Result<(), Error> {
     let snippets = { ctx.data().state.read().unwrap().snippets.clone() };
 
-    let mut embed = CreateEmbed::default().title("Snippets").color(Colour::TEAL);
-
-    // fields are limited to 25 max, we can't display more than 25 snippets in the snippets command
-    // due to a discord limitation.
-    for snippet in snippets.iter().take(25) {
-        embed = embed.field(format!("`{}`", snippet.id), &snippet.title, false);
+    if snippets.is_empty() {
+        respond_err(
+            &ctx,
+            "Cannot send list of snippets",
+            "There are no snippets to list!",
+        )
+        .await;
+        return Ok(());
     }
 
-    ctx.send(poise::CreateReply::default().embed(embed)).await?;
+    let pages: Vec<Vec<(String, String, bool)>> = snippets
+        .iter()
+        .map(|snippet| (snippet.id.clone(), snippet.title.clone(), true))
+        .collect::<Vec<(String, String, bool)>>()
+        .chunks(25)
+        .map(|chunk| chunk.to_vec())
+        .collect();
+
+    super::paginate_lists(ctx, &pages, "Snippets").await?;
 
     Ok(())
 }
