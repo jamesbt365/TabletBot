@@ -1,41 +1,34 @@
 {
+  description = "TabletBot";
+
   inputs = {
-    fenix = {
-      url = "github:nix-community/fenix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-    flake-utils.url = "github:numtide/flake-utils";
-    nixpkgs.url = "nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   };
 
-  outputs = { self, fenix, flake-utils, nixpkgs }:
-    flake-utils.lib.eachDefaultSystem (system: {
-      packages.default = let
-        toolchain = fenix.packages.${system}.minimal.toolchain;
-        pkgs = import nixpkgs {
-          inherit system;
-          config.allowUnfree = true;
-        };
+  outputs = { self, nixpkgs, ... }: let
 
-      in (pkgs.makeRustPlatform {
-        cargo = toolchain;
-        rustc = toolchain;
-      }).buildRustPackage {
-        pname = "tabletbot";
-        version = "0.1.0";
+    system = "x86_64-linux";
 
-        src = ./.;
-        nativeBuildInputs = with pkgs; [ pkg-config ];
+    importPkgs = pkgs: import pkgs { inherit system; };
 
-        buildInputs = with pkgs; [ openssl ];
+    patchedPkgs = (importPkgs nixpkgs).applyPatches {
+      name = "nixpkgs-patched";
+      src = nixpkgs;
+      patches = [ ./268075-nixpkgs.patch ];
+    };
 
-        cargoLock = {
-          lockFile = ./Cargo.lock;
-          outputHashes = {
-            "poise-0.5.7" =
-              "1jp2a1hzwv8946kpffii614wizza8kw27iya2pv2nhrb3a0hb3mw";
-          };
-        };
-      };
-    });
+    pkgs = importPkgs patchedPkgs;
+
+  in rec {
+
+    packages.${system} = rec {
+      tabletbot = pkgs.callPackage ./default.nix { flake = self; };
+      default = tabletbot;
+    };
+
+    devShells.${system}.default = import ./shell.nix {
+      inherit pkgs;
+      packages = packages.${system};
+    };
+  };
 }
