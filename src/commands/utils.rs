@@ -50,8 +50,6 @@ pub async fn embed(
         || thumbnail.is_some()
         || footer.is_some();
 
-    let url_invalid = url.is_some() && title.is_none();
-
     if !at_least_one_property_set {
         respond_err(
             &ctx,
@@ -59,22 +57,33 @@ pub async fn embed(
             "Please provide at least one title, description, image, footer or thumbnail",
         )
         .await;
-        ctx.say("You must provide at least one title, description, image or thumbnail.")
-            .await?;
         return Ok(());
     }
-
-    if url_invalid {
-        respond_err(
-            &ctx,
-            "Failed to respond with embed",
-            "To set a url, you must set a title",
-        )
-        .await;
-        return Ok(());
-    }
-
     let mut embed = CreateEmbed::default();
+
+    if let Some(url) = url {
+        match url.parse::<reqwest::Url>() {
+            Ok(_) => {
+                if title.is_some() {
+                    embed = embed.url(url)
+                } else {
+                    respond_err(
+                        &ctx,
+                        "Failed to respond with embed",
+                        "To set a url, you must set a title.",
+                    )
+                    .await;
+                    return Ok(());
+                }
+            }
+            Err(e) => {
+                let title = "Invalid url provided";
+                let content = &format!("The url '{}' is not a valid url: {}", url, e);
+                respond_err(&ctx, title, content).await;
+                return Ok(());
+            }
+        }
+    }
 
     if let Some(title) = title {
         embed = embed.title(title);
@@ -264,7 +273,7 @@ pub async fn add_repo(
     #[description = "The respository name."] repository: String,
 ) -> Result<(), Error> {
     let key_regex = Regex::new(r"[a-z+]+$").unwrap();
-    let repo_details_regex = Regex::new(r"^([a-zA-Z0-9-_]+)*$").unwrap();
+    let repo_details_regex = Regex::new(r"^([a-zA-Z0-9-_.]+)*$").unwrap();
     if !key_regex.is_match(&key) {
         respond_err(
             &ctx,
@@ -380,22 +389,6 @@ pub async fn list_repos(ctx: Context<'_>) -> Result<(), Error> {
         .collect();
 
     super::paginate_lists(ctx, &pages, "Repositories").await?;
-
-    let mut embed = CreateEmbed::default()
-        .title("Issue tokens")
-        .color(Colour::TEAL);
-
-    // fields are limited to 25 max, we can't display more than 25 snippets in the snippets command
-    // due to a discord limitation.
-    for token in tokens {
-        embed = embed.field(
-            format!("**{}**", token.0),
-            format!("{}/{}", token.1.owner, token.1.name),
-            false,
-        );
-    }
-
-    ctx.send(poise::CreateReply::default().embed(embed)).await?;
 
     Ok(())
 }

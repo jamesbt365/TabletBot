@@ -112,7 +112,7 @@ pub async fn edit_snippet(
     #[description = "The snippet's title"] title: Option<String>,
     #[description = "The snippet's content"] content: Option<String>,
 ) -> Result<(), Error> {
-    match get_snippet(&ctx, &id).await {
+    match get_snippet_lazy(&ctx, &id).await {
         Some(mut snippet) => {
             if let Some(title) = title {
                 snippet.title = title;
@@ -143,8 +143,6 @@ pub async fn edit_snippet(
 }
 
 /// Removes a snippet
-///
-/// Must use the full formatted snippet name (id: title)
 #[poise::command(rename = "remove-snippet", slash_command, guild_only)]
 pub async fn remove_snippet(
     ctx: Context<'_>,
@@ -152,7 +150,7 @@ pub async fn remove_snippet(
     #[description = "The snippet's id"]
     id: String,
 ) -> Result<(), Error> {
-    match get_snippet(&ctx, &id).await {
+    match get_snippet_lazy(&ctx, &id).await {
         Some(snippet) => {
             rm_snippet(&ctx, &snippet).await;
             let title = &"Snippet successfully removed";
@@ -247,7 +245,7 @@ impl Embeddable for Snippet {
 }
 
 // Exact matches the snippet id and name.
-async fn get_snippet(ctx: &Context<'_>, id: &str) -> Option<Snippet> {
+async fn _get_snippet(ctx: &Context<'_>, id: &str) -> Option<Snippet> {
     let data = ctx.data();
     let rwlock_guard = data.state.read().unwrap();
 
