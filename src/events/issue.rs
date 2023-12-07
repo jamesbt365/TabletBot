@@ -108,7 +108,7 @@ async fn issue_embeds(data: &Data, message: &Message) -> Option<Vec<CreateEmbed>
     let ratelimit = client.ratelimit();
 
     let regex =
-        Regex::new(r#" ?([a-zA-Z0-9-_.]+)?#([0-9]+[0-9]) ?"#).expect("Expected numbers regex");
+        Regex::new(r#" ?([a-zA-Z0-9-_.]+)?#([0-9]+) ?"#).expect("Expected numbers regex");
 
     let custom_repos = { data.state.read().unwrap().issue_prefixes.clone() };
 
@@ -126,7 +126,9 @@ async fn issue_embeds(data: &Data, message: &Message) -> Option<Vec<CreateEmbed>
 
                     issues = client.issues(owner, repo);
                     prs = client.pulls(owner, repo);
-                }
+                } else {
+                    continue; // discards when it doesn't match a repo.
+                };
             }
 
             let ratelimit = ratelimit

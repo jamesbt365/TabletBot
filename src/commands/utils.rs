@@ -379,7 +379,7 @@ pub async fn list_repos(ctx: Context<'_>) -> Result<(), Error> {
         .map(|token| {
             (
                 token.0.clone(),
-                format!("{}/{}", token.1.name, token.1.owner),
+                format!("{}/{}", token.1.owner, token.1.name),
                 true,
             )
         })
