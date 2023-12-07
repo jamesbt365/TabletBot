@@ -2,6 +2,8 @@
 , rustPlatform
 , pkg-config
 , openssl
+, fetchurl
+, ...
 }:
 
 rustPlatform.buildRustPackage rec {
@@ -20,5 +22,8 @@ rustPlatform.buildRustPackage rec {
 
   cargoLock = {
     lockFile = ./Cargo.lock;
+    outputHashes = {
+      "poise-0.5.7" = "sha256-vI4FgRorQyv2FcrHI/hE6v/ISTAxOnenIQlt/mFQ4so=";
+    };
   };
 }

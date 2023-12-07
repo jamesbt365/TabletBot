@@ -2,25 +2,33 @@
   description = "TabletBot";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   };
 
-  outputs = attrs @ { self, nixpkgs, ... }: let
+  outputs = { self, nixpkgs, ... }: let
 
     system = "x86_64-linux";
 
-    pkgs = import nixpkgs {
-      inherit system;
-      config.allowUnfree = true;
+    importPkgs = pkgs: import pkgs { inherit system; };
+
+    patchedPkgs = (importPkgs nixpkgs).applyPatches {
+      name = "nixpkgs-patched";
+      src = nixpkgs;
+      patches = [ ./268075-nixpkgs.patch ];
     };
 
-  in {
+    pkgs = importPkgs patchedPkgs;
+
+  in rec {
 
     packages.${system} = rec {
-      tabletbot = pkgs.callPackage ./. {};
+      tabletbot = pkgs.callPackage ./default.nix { flake = self; };
       default = tabletbot;
     };
 
-    devShells.${system}.default = import ./shell.nix { inherit pkgs; };
+    devShells.${system}.default = import ./shell.nix {
+      inherit pkgs;
+      packages = packages.${system};
+    };
   };
 }

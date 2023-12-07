@@ -1,239 +1,284 @@
-use core::panic;
-use serenity::builder::{CreateEmbed, CreateApplicationCommandOption, CreateApplicationCommand};
-use serenity::json::Value;
-use serenity::model::prelude::command::CommandOptionType;
-use serenity::model::prelude::interaction::application_command::{ApplicationCommandInteraction, CommandDataOptionValue};
-use serenity::prelude::Context;
-use crate::structures::{State, Snippet, Embeddable};
-use crate::commands::{arg, respond_ok};
+use crate::{
+    commands::{respond_embed, respond_err, respond_ok},
+    structures::{Embeddable, Snippet},
+    Context, Error,
+};
+use ::serenity::futures::{Stream, StreamExt};
+use poise::serenity_prelude::{futures, CreateAttachment, CreateEmbed};
 
-use super::{respond_err, respond_embed, arg_opt};
+async fn autocomplete_snippet<'a>(
+    ctx: Context<'a>,
+    partial: &'a str,
+) -> impl Stream<Item = String> + 'a {
+    let snippet_list: Vec<String> = {
+        ctx.data()
+            .state
+            .read()
+            .unwrap()
+            .snippets
+            .iter()
+            .take(25)
+            .map(|s| format!("{}: {}", s.id, s.title))
+            .collect()
+    };
 
-pub(super) fn sync_snippets(state: &State, command: &mut CreateApplicationCommand) {
-  let mut id_option = CreateApplicationCommandOption::default();
-  id_option.name("id")
-    .description("The snippet's id")
-    .kind(CommandOptionType::String)
-    .required(true);
-
-  for snippet in state.snippets.iter().take(25) {
-    let name = format!("{}: {}", snippet.id, snippet.title);
-    id_option.add_string_choice(name, snippet.id.clone());
-  }
-
-  insert_option(command, 0, id_option);
+    futures::stream::iter(snippet_list)
+        .filter(move |name| futures::future::ready(name.starts_with(partial)))
+        .map(|name| name.to_string())
 }
 
-pub(super) async fn snippet(ctx: &Context, interaction: &ApplicationCommandInteraction) {
-  match arg(interaction, "id") {
-    CommandDataOptionValue::String(id) => {
-      if let Some(snippet) = get_snippet(ctx, &id).await {
+/// Show a snippet
+///
+/// Allows usage of both just the id and the formatted name (id: title)
+#[poise::command(slash_command, prefix_command, guild_only, track_edits)]
+pub async fn snippet(
+    ctx: Context<'_>,
+    #[rest]
+    #[description = "The snippet's id"]
+    #[autocomplete = "autocomplete_snippet"]
+    id: String,
+) -> Result<(), Error> {
+    // Lazily get snippet because this is a prefix command too.
+    if let Some(snippet) = get_snippet_lazy(&ctx, &id).await {
         let embed = snippet.embed();
 
-        respond_embed(ctx, interaction, &embed, false).await;
-      } else {
-        respond_err(ctx, interaction, "Failed to find snippet", &format!("Failed to find the snippet '{id}'")).await;
-      }
-    },
-    _ => panic!("Invalid arguments provided to command: {}", &interaction.data.name)
-  }
-}
-
-pub(super) async fn edit_snippet(ctx: &Context, interaction: &ApplicationCommandInteraction) {
-  let id = arg(interaction, "id");
-  let title = arg_opt(interaction, "title");
-  let content = arg_opt(interaction, "content");
-
-  if let CommandDataOptionValue::String(id) = id {
-    {
-      let mut data = ctx.data.write().await;
-      let state = data.get_mut::<State>().expect("Failed to get state");
-
-      let snippet = state.snippets.iter_mut().find(|s| s.id.eq(&id));
-
-      if let Some(snippet) = snippet {
-        if let Some(CommandDataOptionValue::String(title)) = title {
-          snippet.title = title;
-        }
-
-        if let Some(CommandDataOptionValue::String(content)) = content {
-          snippet.content = content;
-        }
-
-        println!("Snippet edited '{}: {}'", &snippet.title, &snippet.content);
-
-        state.write()
-      } else {
-        match (title, content) {
-          (
-            Some(CommandDataOptionValue::String(title)),
-            Some(CommandDataOptionValue::String(content))
-          ) => {
-            let snippet = Snippet {
-              id: id.clone(),
-              title: title.clone(),
-              content: content.replace(r#"\n"#, "\n")
-            };
-
-            println!("New snippet created '{}: {}'", id, title);
-
-            state.snippets.push(snippet);
-            state.write()
-          },
-          _ => {
-            let title = "Failed to edit snippet";
-            let content = &format!("The snippet '{}' does not exist", &id);
-            return respond_err(ctx, interaction, title, content).await
-          }
-        }
-      }
+        respond_embed(&ctx, embed, false).await;
+    } else {
+        respond_err(
+            &ctx,
+            "Failed to find snippet",
+            &format!("Failed to find the snippet '{id}'"),
+        )
+        .await;
     }
 
-    super::update_commands(ctx).await;
-
-    let mut embed = get_snippet(ctx, &id).await
-      .expect("Failed to get snippet for recently modified snippet")
-      .embed();
-
-    embed.colour(super::OK_COLOUR);
-
-    respond_embed(ctx, interaction, &embed, false).await;
-  }
+    Ok(())
 }
 
-pub(super) async fn create_snippet(ctx: &Context, interaction: &ApplicationCommandInteraction) {
-  let id = arg(interaction, "id");
-  let title = arg(interaction, "title");
-  let content = arg(interaction, "content");
+/// Creates a snippet
+#[poise::command(rename = "create-snippet", slash_command, guild_only)]
+pub async fn create_snippet(
+    ctx: Context<'_>,
+    #[description = "The snippet's id"] id: String,
+    #[description = "The snippet's title"] title: String,
+    #[description = "The snippet's content"] content: String,
+) -> Result<(), Error> {
+    // I really don't like the code I wrote here.
+    let embed = {
+        let mut rwlock_guard = ctx.data().state.write().unwrap();
 
-  match (id, title, content) {
-    (
-      CommandDataOptionValue::String(id),
-      CommandDataOptionValue::String(title),
-      CommandDataOptionValue::String(content)
-    ) => {
-      let embed = {
-        let mut data = ctx.data.write().await;
-        let state = data.get_mut::<State>().expect("Failed to get state");
-
-        if let Some(snippet) = state.snippets.iter().position(|s| s.id.eq(&id)) {
-          state.snippets.remove(snippet);
+        if let Some(position) = rwlock_guard.snippets.iter().position(|s| s.id.eq(&id)) {
+            rwlock_guard.snippets.remove(position);
         }
 
         let snippet = Snippet {
-          id: id.clone(),
-          title: title.clone(),
-          content: content.replace(r#"\n"#, "\n")
+            id: id.clone(),
+            title: title.clone(),
+            content: content.replace(r"\n", "\n"),
         };
 
+        rwlock_guard.snippets.push(snippet.clone());
+
+        rwlock_guard.snippets = rwlock_guard.snippets.clone();
         println!("New snippet created '{}: {}'", id, title);
+        rwlock_guard.write();
 
         let mut embed = snippet.embed();
-        embed.colour(super::OK_COLOUR);
+        embed = embed.colour(super::OK_COLOUR);
 
-        state.snippets.push(snippet);
-        state.write();
-
-        if state.snippets.len() > 25 {
-          embed.field("Warning", "There are more than 25 snippets, some may not appear in the snippet list.", false);
+        if rwlock_guard.snippets.len() > 25 {
+            embed = embed.field(
+                "Warning",
+                "There are more than 25 snippets, some may not appear in the snippet list.",
+                false,
+            );
         }
 
         embed
-      };
+    };
 
-      super::update_commands(ctx).await;
-      respond_embed(ctx, interaction, &embed, false).await;
-    },
-    _ => panic!("Invalid arguments provided to command: {}", &interaction.data.name)
-  }
+    respond_embed(&ctx, embed, false).await;
+
+    Ok(())
 }
 
-pub(super) async fn remove_snippet(ctx: &Context, interaction: &ApplicationCommandInteraction) {
-  let id = arg(interaction, "id");
+/// Edits a snippet
+#[poise::command(rename = "edit-snippet", slash_command, guild_only)]
+pub async fn edit_snippet(
+    ctx: Context<'_>,
+    #[autocomplete = "autocomplete_snippet"]
+    #[description = "The snippet's id"]
+    id: String,
+    #[description = "The snippet's title"] title: Option<String>,
+    #[description = "The snippet's content"] content: Option<String>,
+) -> Result<(), Error> {
+    match get_snippet_lazy(&ctx, &id).await {
+        Some(mut snippet) => {
+            if let Some(title) = title {
+                snippet.title = title;
+            }
 
-  match id {
-    CommandDataOptionValue::String(id) => {
-      println!("Removing snippet '{id}'");
+            if let Some(content) = content {
+                snippet.content = content.replace(r"\n", "\n");
+            }
 
-      match get_snippet(ctx, &id).await {
-        Some(snippet) => {
-          rm_snippet(ctx, &snippet).await;
-          super::update_commands(ctx).await;
+            {
+                let mut rwlock_guard = ctx.data().state.write().unwrap();
+                rwlock_guard.snippets.push(snippet.clone());
+                println!("Snippet edited '{}: {}'", snippet.title, snippet.content);
+                rwlock_guard.write();
+            }
 
-          let title = &"Snippet successfully removed";
-          let content = &&format!("Removed snippet '{}: {}'", snippet.id, snippet.title);
-          respond_ok(ctx, interaction, title, content).await;
-        },
-        None => {
-          let title = &"Failed to remove snippet";
-          let content = &&format!("The snippet '{id}' does not exist");
-          respond_err(ctx, interaction, title, content).await
+            let embed = snippet.embed().colour(super::OK_COLOUR);
+            respond_embed(&ctx, embed, false).await;
         }
-      }
-    },
-    _ => panic!("Invalid arguments provided to command: {}", interaction.data.name)
-  }
+        None => {
+            let title = &"Failed to edit snippet";
+            let content = &&format!("The snippet '{id}' does not exist");
+            respond_err(&ctx, title, content).await
+        }
+    };
+
+    Ok(())
 }
 
-pub(super) async fn export_snippet(ctx: &Context, interaction: &ApplicationCommandInteraction) {
-  let id = arg(interaction, "id");
+/// Removes a snippet
+#[poise::command(rename = "remove-snippet", slash_command, guild_only)]
+pub async fn remove_snippet(
+    ctx: Context<'_>,
+    #[autocomplete = "autocomplete_snippet"]
+    #[description = "The snippet's id"]
+    id: String,
+) -> Result<(), Error> {
+    match get_snippet_lazy(&ctx, &id).await {
+        Some(snippet) => {
+            rm_snippet(&ctx, &snippet).await;
+            let title = &"Snippet successfully removed";
+            let content = &&format!("Removed snippet '{}: {}'", snippet.id, snippet.title);
+            respond_ok(&ctx, title, content).await;
+        }
+        None => {
+            let title = &"Failed to remove snippet";
+            let content = &&format!("The snippet '{id}' does not exist");
+            respond_err(&ctx, title, content).await
+        }
+    }
 
-  match id {
-    CommandDataOptionValue::String(id) => {
-      let snippet = get_snippet(ctx, &id).await
-        .expect("Failed to get snippet");
+    Ok(())
+}
 
-      let result = interaction.create_followup_message(ctx, |r| r
-        .content(format!("```{}```", &snippet.content.replace("\n", r#"\n"#)))
-        .add_embed(snippet.embed())
-      ).await;
+/// Lists all snippets
+#[poise::command(
+    rename = "list-snippets",
+    aliases("list-snippet", "snippets"),
+    slash_command,
+    prefix_command,
+    guild_only,
+    track_edits
+)]
+pub async fn list_snippets(ctx: Context<'_>) -> Result<(), Error> {
+    let snippets = { ctx.data().state.read().unwrap().snippets.clone() };
 
-      if let Err(e) = result {
-        println!("Failed to respond to interaction '{}': {:#?}", interaction.data.name, e)
-      }
-    },
-    _ => panic!("Invalid arguments provided to command: {}", interaction.data.name)
-  }
+    if snippets.is_empty() {
+        respond_err(
+            &ctx,
+            "Cannot send list of snippets",
+            "There are no snippets to list!",
+        )
+        .await;
+        return Ok(());
+    }
+
+    let pages: Vec<Vec<(String, String, bool)>> = snippets
+        .iter()
+        .map(|snippet| (snippet.id.clone(), snippet.title.clone(), true))
+        .collect::<Vec<(String, String, bool)>>()
+        .chunks(25)
+        .map(|chunk| chunk.to_vec())
+        .collect();
+
+    super::paginate_lists(ctx, &pages, "Snippets").await?;
+
+    Ok(())
+}
+
+/// Exports a snippet for user editing.
+///
+/// Allows usage of both just the id and the formatted name (id: title)
+#[poise::command(rename = "export-snippet", slash_command, prefix_command, guild_only)]
+pub async fn export_snippet(
+    ctx: Context<'_>,
+    #[rest]
+    #[autocomplete = "autocomplete_snippet"]
+    #[description = "The snippet's id"]
+    id: String,
+) -> Result<(), Error> {
+    match get_snippet_lazy(&ctx, &id).await {
+        Some(snippet) => {
+            let attachment = CreateAttachment::bytes(
+                format!("{}", &snippet.content.replace('\n', r"\n")),
+                "snippet.txt",
+            );
+            let message = poise::CreateReply::default()
+                .attachment(attachment)
+                .embed(snippet.embed());
+            ctx.send(message).await?;
+        }
+        None => {
+            let title = &"Failed to export snippet";
+            let content = &&format!("The snippet '{id}' does not exist");
+            respond_err(&ctx, title, content).await
+        }
+    }
+
+    Ok(())
 }
 
 impl Embeddable for Snippet {
-  fn embed(&self) -> CreateEmbed {
-    CreateEmbed::default()
-      .title(&self.title)
-      .description(&self.content)
-      .colour(super::ACCENT_COLOUR)
-      .clone()
-  }
+    fn embed(&self) -> CreateEmbed {
+        CreateEmbed::default()
+            .title(&self.title)
+            .description(&self.content)
+            .colour(super::ACCENT_COLOUR)
+            .clone()
+    }
 }
 
-async fn get_snippet(ctx: &Context, id: &str) -> Option<Snippet> {
-  let data = ctx.data.read().await;
-  let state = data.get::<State>().expect("Failed to get state");
+// Exact matches the snippet id and name.
+async fn _get_snippet(ctx: &Context<'_>, id: &str) -> Option<Snippet> {
+    let data = ctx.data();
+    let rwlock_guard = data.state.read().unwrap();
 
-  state.snippets.iter()
-    .find(|s| s.id.eq(id))
-    .cloned()
+    rwlock_guard
+        .snippets
+        .iter()
+        .find(|s| s.format_output().eq(id))
+        .cloned()
 }
 
-async fn rm_snippet(ctx: &Context, snippet: &Snippet) {
-  let mut data = ctx.data.write().await;
-  let state = data.get_mut::<State>()
-    .expect("Failed to get state");
+// Matches the snippet by checking if its starts with the id and name.
+async fn get_snippet_lazy(ctx: &Context<'_>, id: &str) -> Option<Snippet> {
+    let data = ctx.data();
+    let rwlock_guard = data.state.read().unwrap();
 
-  let index = state.snippets.iter()
-    .position(|s| s.id == snippet.id)
-    .expect("Snippet was not found in vec");
-
-  println!("Removing snippet '{}: {}'", snippet.id, snippet.title);
-  state.snippets.remove(index);
-  state.write();
+    rwlock_guard
+        .snippets
+        .iter()
+        .find(|s| s.format_output().starts_with(id))
+        .cloned()
 }
 
-fn insert_option(command: &mut CreateApplicationCommand, index: usize, option: CreateApplicationCommandOption) -> &mut CreateApplicationCommand {
-  let new_option = serenity::json::hashmap_to_json_map(option.0);
-  let options = command.0.entry("options").or_insert_with(|| Value::from(Vec::<Value>::new()));
-  let opt_arr = options.as_array_mut().expect("Must be an array");
-  opt_arr.insert(index, Value::from(new_option));
+async fn rm_snippet(ctx: &Context<'_>, snippet: &Snippet) {
+    let data = ctx.data();
+    let mut rwlock_guard = data.state.write().unwrap();
 
-  command
+    let index = rwlock_guard
+        .snippets
+        .iter()
+        .position(|s| s.id == snippet.id)
+        .expect("Snippet was not found in vec");
+
+    println!("Removing snippet '{}: {}'", snippet.id, snippet.title);
+    rwlock_guard.snippets.remove(index);
+    rwlock_guard.write();
 }

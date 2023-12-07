@@ -1,249 +1,152 @@
-use serenity::builder::CreateApplicationCommand;
-use serenity::builder::CreateApplicationCommandOption;
-use serenity::builder::CreateEmbed;
-use serenity::http::Http;
-use serenity::model::prelude::command::Command;
-use serenity::model::prelude::command::CommandOptionType;
-use serenity::model::prelude::interaction::application_command::ApplicationCommandInteraction;
-use serenity::model::prelude::interaction::application_command::CommandDataOptionValue;
-use serenity::prelude::Context;
-use serenity::prelude::TypeMapKey;
-use serenity::utils::Colour;
-use std::collections::HashMap;
-use crate::structures::State;
-
-mod snippets;
-mod utils;
-
-pub async fn register(ctx: &Context) -> ApplicationCommandMap {
-  println!("Registering slash commands...");
-
-  let mut data = ctx.data.write().await;
-  let state = data.get_mut::<State>()
-    .expect("Failed to get state");
-
-  let commands = ApplicationCommandMap::new(state);
-
-  match commands.register(ctx).await {
-    Ok(c) => println!("Registered {} slash commands", c.len()),
-    Err(e) => println!("Failed to register slash commands: {}", e)
-  }
-
-  commands
-}
-
-pub async fn interact(ctx: &Context, interaction: &ApplicationCommandInteraction) {
-  let name = &interaction.data.name;
-
-  interaction.defer(ctx).await.expect("Failed to defer interaction");
-
-  match name.as_str() {
-    "snippet" => snippets::snippet(ctx, interaction).await,
-    "create-snippet" => snippets::create_snippet(ctx, interaction).await,
-    "edit-snippet" => snippets::edit_snippet(ctx, interaction).await,
-    "remove-snippet" => snippets::remove_snippet(ctx, interaction).await,
-    "export-snippet" => snippets::export_snippet(ctx, interaction).await,
-    "embed" => utils::embed(ctx, interaction).await,
-    _ => {
-      println!("WARNING: Received invalid application command interaction!: {}", name);
-
-      let title = "Invalid application command";
-      let content = &format!("An invalid application command was recieved: {}", name);
-      respond_err(ctx, interaction, title, content).await;
-    }
-  }
-}
+pub mod snippets;
+pub mod utils;
 
 pub(crate) const ACCENT_COLOUR: Colour = Colour(0x8957e5);
 pub(crate) const OK_COLOUR: Colour = Colour(0x2ecc71);
 pub(crate) const ERROR_COLOUR: Colour = Colour(0xe74c3c);
 
-type CommandHashMap = HashMap<&'static str, CreateApplicationCommand>;
+use crate::{Context, Error};
 
-#[derive(Clone)]
-pub struct ApplicationCommandMap(pub CommandHashMap);
+use poise::serenity_prelude::{
+    self as serenity, Colour, ComponentInteractionCollector, CreateActionRow, CreateButton,
+    CreateEmbed, CreateEmbedFooter, CreateInteractionResponse, CreateInteractionResponseMessage,
+};
+use poise::CreateReply;
 
-impl TypeMapKey for ApplicationCommandMap {
-  type Value = ApplicationCommandMap;
+#[poise::command(prefix_command, hide_in_help)]
+pub async fn register(ctx: Context<'_>) -> Result<(), Error> {
+    poise::builtins::register_application_commands_buttons(ctx).await?;
+
+    Ok(())
 }
 
-impl ApplicationCommandMap {
-  pub fn new(state: &State) -> ApplicationCommandMap {
-    let mut id_opt = CreateApplicationCommandOption::default();
-    id_opt.name("id")
-      .description("The snippet's id")
-      .kind(CommandOptionType::String)
-      .required(true);
+pub async fn respond_embed(ctx: &Context<'_>, embed: CreateEmbed, ephemeral: bool) {
+    let builder = poise::CreateReply::default()
+        .embed(embed)
+        .ephemeral(ephemeral);
+    let result = ctx.send(builder).await;
 
-    let mut title_opt = CreateApplicationCommandOption::default();
-    title_opt.name("title")
-      .description("The snippet's title")
-      .kind(CommandOptionType::String);
+    if let Err(e) = result {
+        println!("Failed to respond: {}", e)
+    }
+}
 
-    let mut content_opt = CreateApplicationCommandOption::default();
-    content_opt.name("content")
-      .description("The snippet's content")
-      .kind(CommandOptionType::String);
+pub async fn respond_ok(ctx: &Context<'_>, title: &str, content: &str) {
+    let embed = CreateEmbed::default()
+        .title(title)
+        .description(content)
+        .colour(OK_COLOUR);
 
-    let snippet = CreateApplicationCommand::default()
-      .description("Shows a snippet")
-      .clone();
+    respond_embed(ctx, embed, false).await;
+}
 
-    let create_snippet = CreateApplicationCommand::default()
-      .description("Creates a snippet")
-      .add_option(id_opt)
-      .add_option(title_opt.required(true).clone())
-      .add_option(content_opt.required(true).clone())
-      .clone();
+pub async fn respond_err(ctx: &Context<'_>, title: &str, content: &str) {
+    let embed = CreateEmbed::default()
+        .title(title)
+        .description(content)
+        .colour(ERROR_COLOUR);
 
-    let edit_snippet = CreateApplicationCommand::default()
-      .description("Edits a snippet")
-      .add_option(title_opt.required(false).clone())
-      .add_option(content_opt.required(false).clone())
-      .clone();
+    respond_embed(ctx, embed, false).await;
+}
 
-    let remove_snippet = CreateApplicationCommand::default()
-      .description("Removes a snippet")
-      .clone();
+pub async fn paginate_lists<U, E>(
+    ctx: poise::Context<'_, U, E>,
+    pages: &[Vec<(String, String, bool)>],
+    embed_title: &str,
+) -> Result<(), Error> {
+    let ctx_id = ctx.id();
+    let prev_button_id = format!("{}prev", ctx_id);
+    let next_button_id = format!("{}next", ctx_id);
 
-    let export_snippet = CreateApplicationCommand::default()
-      .description("Exports a snippet for user editing")
-      .clone();
+    let colour = Colour::TEAL;
 
-    let embed = CreateApplicationCommand::default()
-      .description("Creates an embed in the current channel")
-      .create_option(|o| o
-        .name("title")
-        .description("The embed title")
-        .kind(CommandOptionType::String)
-      )
-      .create_option(|o| o
-        .name("description")
-        .description("The embed description")
-        .kind(CommandOptionType::String)
-      )
-      .create_option(|o| o
-        .name("color")
-        .description("The color of the embed in hexadecimal form. (ex: #ff00ff)")
-        .kind(CommandOptionType::String)
-      )
-      .create_option(|o| o
-        .name("url")
-        .description("The embed url")
-        .kind(CommandOptionType::String)
-      )
-      .create_option(|o| o
-        .name("footer")
-        .description("The embed footer text")
-        .kind(CommandOptionType::String)
-      )
-      .create_option(|o| o
-        .name("image")
-        .description("The image url for the embed")
-        .kind(CommandOptionType::String)
-      )
-      .clone();
+    let components = CreateActionRow::Buttons(vec![
+        CreateButton::new(&prev_button_id).emoji('◀'),
+        CreateButton::new(&next_button_id).emoji('▶'),
+    ]);
+    let mut current_page = 0;
 
-    let mut commands = ApplicationCommandMap(CommandHashMap::new());
+    // Don't paginate if its one page.
+    let reply = if pages.len() > 1 {
+        CreateReply::default()
+            .embed(
+                CreateEmbed::default()
+                    .title(embed_title)
+                    .fields(pages[current_page].clone())
+                    .colour(colour)
+                    .footer(CreateEmbedFooter::new(format!(
+                        "Page: {}/{}",
+                        current_page + 1,
+                        pages.len()
+                    ))),
+            )
+            .components(vec![components])
+    } else {
+        CreateReply::default().embed(
+            CreateEmbed::default()
+                .title(embed_title)
+                .colour(colour)
+                .fields(pages[current_page].clone()),
+        )
+    };
 
-    commands.insert("snippet", snippet);
-    commands.insert("create-snippet", create_snippet);
-    commands.insert("edit-snippet", edit_snippet);
-    commands.insert("remove-snippet", remove_snippet);
-    commands.insert("export-snippet", export_snippet);
-    commands.insert("embed", embed);
+    let msg = ctx.send(reply).await?;
 
-    for (name, command) in commands.0.iter_mut() {
-      match *name {
-        "snippet" => snippets::sync_snippets(state, command),
-        "remove-snippet" => snippets::sync_snippets(state, command),
-        "export-snippet" => snippets::sync_snippets(state, command),
-        "edit-snippet" => snippets::sync_snippets(state, command),
-        _ => ()
-      }
+    if pages.len() > 1 {
+        while let Some(press) = ComponentInteractionCollector::new(ctx)
+            .filter(move |press| press.data.custom_id.starts_with(&ctx_id.to_string()))
+            .timeout(std::time::Duration::from_secs(180))
+            .await
+        {
+            if press.data.custom_id == next_button_id {
+                current_page += 1;
+                if current_page >= pages.len() {
+                    current_page = 0;
+                }
+            } else if press.data.custom_id == prev_button_id {
+                current_page = current_page.checked_sub(1).unwrap_or(pages.len() - 1);
+            } else {
+                continue;
+            }
+
+            press
+                .create_response(
+                    ctx.serenity_context(),
+                    CreateInteractionResponse::UpdateMessage(
+                        CreateInteractionResponseMessage::new().embed(
+                            serenity::CreateEmbed::new()
+                                .title(embed_title)
+                                .colour(colour)
+                                .fields(pages[current_page].clone())
+                                .footer(CreateEmbedFooter::new(format!(
+                                    "Page: {}/{}",
+                                    current_page + 1,
+                                    pages.len()
+                                ))),
+                        ),
+                    ),
+                )
+                .await?;
+        }
+        // Remove components after timeout.
+        msg.edit(
+            ctx,
+            poise::CreateReply::default()
+                .embed(
+                    serenity::CreateEmbed::default()
+                        .title(embed_title)
+                        .colour(colour)
+                        .fields(pages[current_page].clone())
+                        .footer(CreateEmbedFooter::new(format!(
+                            "Page: {}/{}",
+                            current_page + 1,
+                            pages.len()
+                        ))),
+                )
+                .components(vec![]),
+        )
+        .await?;
     }
 
-    commands
-  }
-
-  fn insert(&mut self, k: &'static str, v: CreateApplicationCommand) -> Option<CreateApplicationCommand> {
-    self.0.insert(k, v)
-  }
-
-  fn builders(&self) -> Vec<CreateApplicationCommand> {
-    self.0.iter()
-      .map(|p| {
-        let mut builder = p.1.clone();
-        builder.name(p.0);
-        builder
-      })
-      .collect::<Vec<CreateApplicationCommand>>()
-  }
-
-  pub async fn register(&self, http: impl AsRef<Http>) -> Result<Vec<Command>, serenity::Error> {
-    Command::set_global_application_commands(http, |commands| {
-      commands.set_application_commands(self.builders())
-    }).await
-  }
-}
-
-pub fn arg(interaction: &ApplicationCommandInteraction, name: &'static str) -> CommandDataOptionValue {
-  arg_opt(interaction, name).expect(&format!("No '{name}' argument provided")).clone()
-}
-
-pub fn arg_opt(interaction: &ApplicationCommandInteraction, name: &'static str) -> Option<CommandDataOptionValue> {
-  let opt = interaction.data.options.iter()
-    .find(|o| o.name == name);
-
-  if let Some(opt) = opt {
-    opt.resolved.as_ref().cloned()
-  } else {
-    None
-  }
-}
-
-pub async fn respond_embed(ctx: &Context, interaction: &ApplicationCommandInteraction, embed: &CreateEmbed, ephemeral: bool) {
-  let result = interaction.create_followup_message(ctx, |r| r
-    .add_embed(embed.clone())
-    .ephemeral(ephemeral)
-  ).await;
-
-  if let Err(e) = result {
-    println!("Failed to respond to interaction '{}': {:#?}", interaction.data.name, e)
-  }
-}
-
-pub async fn respond_ok(ctx: &Context, interaction: &ApplicationCommandInteraction, title: &str, content: &str) {
-  let mut embed = CreateEmbed::default();
-  let embed = embed
-    .title(title)
-    .description(content)
-    .colour(OK_COLOUR);
-
-  respond_embed(ctx, interaction, embed, false).await;
-}
-
-pub async fn respond_err(ctx: &Context, interaction: &ApplicationCommandInteraction, title: &str, content: &str) {
-  let mut embed = CreateEmbed::default();
-  let embed = embed
-    .title(title)
-    .description(content)
-    .colour(ERROR_COLOUR);
-
-  respond_embed(ctx, interaction, embed, false).await;
-}
-
-pub async fn update_commands(ctx: &Context) {
-  let mut data = ctx.data.write().await;
-  let state = data.get_mut::<State>()
-    .expect("Failed to get state");
-
-  println!("Updating commands...");
-  let command_map = ApplicationCommandMap::new(state);
-
-  println!("Registering newly updated commands");
-  match command_map.register(ctx).await {
-    Ok(commands) => println!("Successfully updated {} commands", commands.len()),
-    Err(e) => println!("Failed to update commands: {e}")
-  }
+    Ok(())
 }

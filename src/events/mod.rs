@@ -1,12 +1,26 @@
-use serenity::model::prelude::Message;
-use serenity::prelude::Context;
+use poise::serenity_prelude as serenity;
 
-pub mod issue;
+use crate::{Data, Error};
+
 pub mod code;
+pub mod issue;
 
-pub async fn message(ctx: &Context, msg: &Message) {
-  if !msg.author.bot {
-    issue::message(&ctx, &msg).await;
-    code::message(&ctx, &msg).await;
-  }
+pub async fn event_handler(
+    ctx: &serenity::Context,
+    event: &serenity::FullEvent,
+    _framework: poise::FrameworkContext<'_, Data, Error>,
+    data: &Data,
+) -> Result<(), Error> {
+    #[allow(clippy::single_match)]
+    match event {
+        serenity::FullEvent::Message { new_message } => {
+            if !new_message.author.bot && new_message.guild_id.is_some() {
+                issue::message(data, ctx, new_message).await;
+                code::message(ctx, new_message).await;
+            }
+        }
+        _ => (),
+    }
+
+    Ok(())
 }

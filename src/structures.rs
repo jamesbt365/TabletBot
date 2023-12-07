@@ -1,90 +1,94 @@
-use serde_json::{from_reader, to_writer_pretty};
 use serde::{Deserialize, Serialize};
+use serde_json::{from_reader, to_writer_pretty};
 use serenity::builder::CreateEmbed;
-use serenity::client::bridge::gateway::ShardManager;
-use serenity::prelude::{TypeMapKey, Mutex};
+use serenity::prelude::TypeMapKey;
+use std::collections::HashMap;
 use std::env;
-use std::fs::{self, File, OpenOptions };
+use std::fs::{self, File, OpenOptions};
 use std::path::Path;
-use std::sync::Arc;
-
-pub struct ShardManagerContainer;
-
-impl TypeMapKey for ShardManagerContainer {
-  type Value = Arc<Mutex<ShardManager>>;
-}
 
 pub trait Embeddable {
-  fn embed(&self) -> CreateEmbed;
+    fn embed(&self) -> CreateEmbed;
 }
 
 #[derive(Deserialize, Serialize, Clone)]
 pub struct Snippet {
-  pub id: String,
-  pub title: String,
-  pub content: String
+    pub id: String,
+    pub title: String,
+    pub content: String,
 }
 
-#[derive(Deserialize, Serialize)]
-pub struct State {
-  pub snippets: Vec<Snippet>
+impl Snippet {
+    pub fn format_output(&self) -> String {
+        format!("{}: {}", self.id, self.title)
+    }
 }
 
-impl Default for State {
-  fn default() -> State {
-    Self {
-      snippets: Vec::new()
-    }
-  }
+#[derive(Deserialize, Serialize, Default)]
+pub struct BotState {
+    pub snippets: Vec<Snippet>,
+    pub issue_prefixes: HashMap<String, RepositoryDetails>,
 }
 
-impl TypeMapKey for State {
-  type Value = State;
+impl TypeMapKey for BotState {
+    type Value = BotState;
 }
 
-impl State {
-  pub fn get_path() -> String {
-    let pwd = env::current_dir().unwrap().to_string_lossy().to_string();
-    let data_root = env::var("TABLETBOT_DATA").unwrap_or(pwd);
+#[derive(Deserialize, Clone, Serialize, Default)]
+pub struct RepositoryDetails {
+    pub owner: String,
+    pub name: String,
+}
 
-    match env::var("TABLETBOT_STATE") {
-      Ok(path) => path,
-      Err(_) => format!("{data_root}/state.json")
+impl RepositoryDetails {
+    pub fn get(&self) -> (&String, &String) {
+        (&self.owner, &self.name)
     }
-  }
+}
 
-  pub fn read() -> State {
-    let path_str = Self::get_path();
-    let path = Path::new(&path_str);
+impl BotState {
+    pub fn get_path() -> String {
+        let pwd = env::current_dir().unwrap().to_string_lossy().to_string();
+        let data_root = env::var("TABLETBOT_DATA").unwrap_or(pwd);
 
-    if path.exists() {
-      let file = File::open(path).unwrap();
-      from_reader(file).unwrap()
-    } else {
-      State::default()
-    }
-  }
-
-  pub fn write(&self) {
-    let path_str = Self::get_path();
-    let path = Path::new(&path_str);
-
-    if path.exists() {
-      fs::remove_file(path).expect("Failed to delete old file.");
+        match env::var("TABLETBOT_STATE") {
+            Ok(path) => path,
+            Err(_) => format!("{data_root}/state.json"),
+        }
     }
 
-    let writer = OpenOptions::new()
-      .read(true)
-      .write(true)
-      .create(true)
-      .open(&path);
+    pub fn read() -> BotState {
+        let path_str = Self::get_path();
+        let path = Path::new(&path_str);
 
-    match writer {
-      Ok(writer) => match to_writer_pretty(writer, self) {
-        Ok(_) => println!("Successfully saved state to '{path_str}'", ),
-        Err(e) => println!("Failed to save state to '{path_str}': {e}")
-      },
-      Err(e) => println!("Unable to write state to '{path_str}': {e}")
-    };
-  }
+        if path.exists() {
+            let file = File::open(path).unwrap();
+            from_reader(file).unwrap()
+        } else {
+            BotState::default()
+        }
+    }
+
+    pub fn write(&self) {
+        let path_str = Self::get_path();
+        let path = Path::new(&path_str);
+
+        if path.exists() {
+            fs::remove_file(path).expect("Failed to delete old file.");
+        }
+
+        let writer = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(path);
+
+        match writer {
+            Ok(writer) => match to_writer_pretty(writer, self) {
+                Ok(_) => println!("Successfully saved state to '{path_str}'",),
+                Err(e) => println!("Failed to save state to '{path_str}': {e}"),
+            },
+            Err(e) => println!("Unable to write state to '{path_str}': {e}"),
+        };
+    }
 }
