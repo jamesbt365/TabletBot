@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crate::{structures::Embeddable, Data, commands::interaction_err};
+use crate::{commands::interaction_err, structures::Embeddable, Data};
 use ::serenity::builder::CreateEmbedAuthor;
 use octocrab::models::issues::Issue;
 use octocrab::models::pulls::PullRequest;
@@ -68,7 +68,12 @@ pub async fn message(data: &Data, ctx: &Context, message: &Message) {
                 }
                 msg_deleted = true;
             } else {
-                interaction_err(ctx, &press, "Unable to use interaction because you are missing `MANAGE_MESSAGES`.").await;
+                interaction_err(
+                    ctx,
+                    &press,
+                    "Unable to use interaction because you are missing `MANAGE_MESSAGES`.",
+                )
+                .await;
             }
 
             if press.data.custom_id == hide_body_id
@@ -97,7 +102,12 @@ pub async fn message(data: &Data, ctx: &Context, message: &Message) {
                 }
                 body_hid = true;
             } else {
-                interaction_err(ctx, &press, "Unable to use interaction because you are missing `MANAGE_MESSAGES`.").await;
+                interaction_err(
+                    ctx,
+                    &press,
+                    "Unable to use interaction because you are missing `MANAGE_MESSAGES`.",
+                )
+                .await;
             }
         }
         // Triggers on timeout.
