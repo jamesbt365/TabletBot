@@ -26,7 +26,6 @@ async fn autocomplete_snippet<'a>(
 
     futures::stream::iter(snippet_list)
         .filter(move |name| futures::future::ready(name.contains(partial)))
-        .map(|name| name.to_string())
 }
 
 /// Show a snippet

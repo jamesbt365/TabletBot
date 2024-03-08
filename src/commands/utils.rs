@@ -25,7 +25,6 @@ async fn autocomplete_key<'a>(
 
     futures::stream::iter(snippet_list)
         .filter(move |name| futures::future::ready(name.contains(partial)))
-        .map(|name| name.to_string())
 }
 
 /// Create an embed in the current channel.
