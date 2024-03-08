@@ -80,7 +80,6 @@ pub async fn create_snippet(
 
         rwlock_guard.snippets.push(snippet.clone());
 
-        rwlock_guard.snippets = rwlock_guard.snippets.clone();
         println!("New snippet created '{id}: {title}'");
         rwlock_guard.write();
 
