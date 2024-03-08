@@ -20,13 +20,12 @@ async fn autocomplete_snippet<'a>(
             .unwrap()
             .snippets
             .iter()
-            .take(25)
             .map(|s| format!("{}: {}", s.id, s.title))
             .collect()
     };
 
     futures::stream::iter(snippet_list)
-        .filter(move |name| futures::future::ready(name.starts_with(partial)))
+        .filter(move |name| futures::future::ready(name.contains(partial)))
         .map(|name| name.to_string())
 }
 
