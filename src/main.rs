@@ -119,7 +119,8 @@ async fn main() {
 
     let intents = GatewayIntents::GUILD_MESSAGES
         | GatewayIntents::DIRECT_MESSAGES
-        | GatewayIntents::MESSAGE_CONTENT;
+        | GatewayIntents::MESSAGE_CONTENT
+        | GatewayIntents::GUILDS;
 
     let mut client = serenity::Client::builder(discord_token, intents)
         .framework(framework)
