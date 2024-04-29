@@ -11,13 +11,7 @@
 
     importPkgs = pkgs: import pkgs { inherit system; };
 
-    patchedPkgs = (importPkgs nixpkgs).applyPatches {
-      name = "nixpkgs-patched";
-      src = nixpkgs;
-      patches = [ ./268075-nixpkgs.patch ];
-    };
-
-    pkgs = importPkgs patchedPkgs;
+    pkgs = importPkgs nixpkgs;
 
   in rec {
 

@@ -1,11 +1,12 @@
 use std::time::Duration;
 
-use crate::{structures::Embeddable, Data};
+use crate::{commands::interaction_err, structures::Embeddable, Data};
 use ::serenity::builder::CreateEmbedAuthor;
 use octocrab::models::issues::Issue;
 use octocrab::models::pulls::PullRequest;
 use poise::serenity_prelude::{
-    self as serenity, Colour, Context, CreateEmbed, Message, Permissions,
+    self as serenity, ButtonStyle, Colour, Context, CreateActionRow, CreateButton, CreateEmbed,
+    CreateInteractionResponse, Message, Permissions,
 };
 use regex::Regex;
 
@@ -23,11 +24,15 @@ pub async fn message(data: &Data, ctx: &Context, message: &Message) {
         let ctx_id = message.id.get(); // poise context isn't available here.
         let remove_id = format!("{ctx_id}remove");
         let hide_body_id = format!("{ctx_id}hide_body");
+        let remove = CreateActionRow::Buttons(vec![CreateButton::new(&remove_id)
+            .label("delete")
+            .style(ButtonStyle::Danger)]);
+
         let components = serenity::CreateActionRow::Buttons(vec![
-            serenity::CreateButton::new(&remove_id)
+            CreateButton::new(&remove_id)
                 .label("delete")
-                .style(serenity::ButtonStyle::Danger),
-            serenity::CreateButton::new(&hide_body_id).label("hide body"),
+                .style(ButtonStyle::Danger),
+            CreateButton::new(&hide_body_id).label("hide body"),
         ]);
 
         let content: serenity::CreateMessage = serenity::CreateMessage::default()
@@ -44,50 +49,63 @@ pub async fn message(data: &Data, ctx: &Context, message: &Message) {
             .timeout(Duration::from_secs(60))
             .await
         {
-            // Safe to unwap member because this only runs in guilds.
-            // The only way this could go wrong if cache isn't ready? (fresh bot restart)
             let has_perms = press.member.as_ref().map_or(false, |member| {
                 member.permissions.map_or(false, |member_perms| {
                     member_perms.contains(Permissions::MANAGE_MESSAGES)
                 })
             });
 
-            if press.data.custom_id == remove_id
-                && (press.user.id == message.author.id || has_perms)
-            {
-                let _ = press
-                    .create_response(ctx, serenity::CreateInteractionResponse::Acknowledge)
+            if press.data.custom_id == remove_id {
+                if press.user.id == message.author.id || has_perms {
+                    let _ = press
+                        .create_response(ctx, CreateInteractionResponse::Acknowledge)
+                        .await;
+                    if let Ok(ref msg) = msg_result {
+                        let _ = msg.delete(ctx).await;
+                    }
+                    msg_deleted = true;
+                } else {
+                    interaction_err(
+                        ctx,
+                        &press,
+                        "Unable to use interaction because you are missing `MANAGE_MESSAGES`.",
+                    )
                     .await;
-                if let Ok(ref msg) = msg_result {
-                    let _ = msg.delete(ctx).await;
                 }
-                msg_deleted = true;
             }
 
-            if press.data.custom_id == hide_body_id
-                && (press.user.id == message.author.id || has_perms)
-            {
-                if !body_hid {
-                    let mut hid_body_embeds: Vec<CreateEmbed> = Vec::new();
-                    if let Ok(ref msg) = msg_result {
-                        for mut embed in msg.embeds.clone() {
-                            embed.description = None;
-                            let embed: CreateEmbed = embed.clone().into();
-                            hid_body_embeds.push(embed);
+            if press.data.custom_id == hide_body_id {
+                if press.user.id == message.author.id || has_perms {
+                    if !body_hid {
+                        let mut hid_body_embeds: Vec<CreateEmbed> = Vec::new();
+                        if let Ok(ref msg) = msg_result {
+                            for mut embed in msg.embeds.clone() {
+                                embed.description = None;
+                                let embed: CreateEmbed = embed.clone().into();
+                                hid_body_embeds.push(embed);
+                            }
                         }
-                    }
 
-                    let _ = press
-                        .create_response(
-                            ctx,
-                            serenity::CreateInteractionResponse::UpdateMessage(
-                                serenity::CreateInteractionResponseMessage::new()
-                                    .embeds(hid_body_embeds),
-                            ),
-                        )
-                        .await;
+                        let _ = press
+                            .create_response(
+                                ctx,
+                                serenity::CreateInteractionResponse::UpdateMessage(
+                                    serenity::CreateInteractionResponseMessage::new()
+                                        .embeds(hid_body_embeds)
+                                        .components(vec![remove.clone()]),
+                                ),
+                            )
+                            .await;
+                    }
+                    body_hid = true;
+                } else {
+                    interaction_err(
+                        ctx,
+                        &press,
+                        "Unable to use interaction because you are missing `MANAGE_MESSAGES`.",
+                    )
+                    .await;
                 }
-                body_hid = true;
             }
         }
         // Triggers on timeout.
@@ -98,7 +116,6 @@ pub async fn message(data: &Data, ctx: &Context, message: &Message) {
                     .await;
             }
         }
-        //
     }
 }
 
@@ -107,8 +124,7 @@ async fn issue_embeds(data: &Data, message: &Message) -> Option<Vec<CreateEmbed>
     let client = octocrab::instance();
     let ratelimit = client.ratelimit();
 
-    let regex =
-        Regex::new(r" ?([a-zA-Z0-9-_.]+)?#([0-9]+[0-9]) ?").expect("Expected numbers regex");
+    let regex = Regex::new(r" ?([a-zA-Z0-9-_.]+)?#([0-9]+) ?").expect("Expected numbers regex");
 
     let custom_repos = { data.state.read().unwrap().issue_prefixes.clone() };
 
@@ -126,7 +142,9 @@ async fn issue_embeds(data: &Data, message: &Message) -> Option<Vec<CreateEmbed>
 
                     issues = client.issues(owner, repo);
                     prs = client.pulls(owner, repo);
-                }
+                } else {
+                    continue; // discards when it doesn't match a repo.
+                };
             }
 
             let ratelimit = ratelimit
