@@ -43,9 +43,7 @@ async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
                 None => "Please check the help menu for usage information",
             };
             let response = if let Some(input) = input {
-                format!(
-                    "**Cannot parse `{input}` as argument: {error}**\n{usage}"
-                )
+                format!("**Cannot parse `{input}` as argument: {error}**\n{usage}")
             } else {
                 format!("### {error}\n{usage}")
             };
