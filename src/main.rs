@@ -21,9 +21,38 @@ type Context<'a> = poise::Context<'a, Data, Error>;
 async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
     match error {
         poise::FrameworkError::Setup { error, .. } => panic!("Failed to start bot: {:?}", error),
-        poise::FrameworkError::Command { error, ctx, .. } => {
-            println!("Error in command `{}`: {:?}", ctx.command().name, error,);
+        poise::FrameworkError::Command { ctx, error, .. } => {
+            let error = error.to_string();
+            eprintln!("An error occured in a command: {}", error);
+            commands::respond_err(&ctx, "Command Error", &error).await;
         }
+
+        poise::FrameworkError::ArgumentParse {
+            error, input, ctx, ..
+        } => {
+            let usage = match &ctx.command().help_text {
+                Some(help_text) => &**help_text,
+                None => "Please check the help menu for usage information",
+            };
+            let response = if let Some(input) = input {
+                format!(
+                    "**Cannot parse `{}` as argument: {}**\n{}",
+                    input, error, usage
+                )
+            } else {
+                format!("### {}\n{}", error, usage)
+            };
+            commands::respond_err(&ctx, "Argument Parsing Error", &response).await;
+        }
+        poise::FrameworkError::GuildOnly { ctx, .. } => {
+            commands::respond_err(
+                &ctx,
+                "This command cannot be ran in DMs.",
+                "You cannot run this command in DMs.",
+            )
+            .await;
+        }
+
         error => {
             if let Err(e) = poise::builtins::on_error(error).await {
                 println!("Error while handling error: {}", e)

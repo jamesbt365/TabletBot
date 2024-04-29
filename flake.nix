@@ -11,10 +11,7 @@
 
     importPkgs = pkgs: import pkgs { inherit system; };
 
-    pkgs = import nixpkgs {
-      inherit system;
-      config.allowUnfree = true;
-    };
+    pkgs = importPkgs nixpkgs;
 
   in rec {
 
