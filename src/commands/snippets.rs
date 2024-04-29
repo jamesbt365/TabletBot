@@ -9,6 +9,7 @@ use poise::serenity_prelude::{
     CreateInteractionResponseMessage,
 };
 
+#[allow(clippy::unused_async)]
 async fn autocomplete_snippet<'a>(
     ctx: Context<'a>,
     partial: &'a str,
@@ -40,7 +41,7 @@ pub async fn snippet(
     id: String,
 ) -> Result<(), Error> {
     // Lazily get snippet because this is a prefix command too.
-    if let Some(snippet) = get_snippet_lazy(&ctx, &id).await {
+    if let Some(snippet) = get_snippet_lazy(&ctx, &id) {
         let embed = snippet.embed();
 
         respond_embed(&ctx, embed, false).await;
@@ -78,6 +79,7 @@ pub async fn create_snippet(
         };
 
         println!("New snippet created '{}: {}'", snippet.id, snippet.title);
+
         let mut embed = snippet.embed();
 
         embed = embed.colour(super::OK_COLOUR);
@@ -111,7 +113,7 @@ pub async fn edit_snippet(
     #[description = "The snippet's title"] title: Option<String>,
     #[description = "The snippet's content"] content: Option<String>,
 ) -> Result<(), Error> {
-    match get_snippet_lazy(&ctx, &id).await {
+    match get_snippet_lazy(&ctx, &id) {
         Some(mut snippet) => {
             if let Some(title) = title {
                 snippet.title = title;
@@ -134,7 +136,7 @@ pub async fn edit_snippet(
         None => {
             let title = &"Failed to edit snippet";
             let content = &&format!("The snippet '{id}' does not exist");
-            respond_err(&ctx, title, content).await
+            respond_err(&ctx, title, content).await;
         }
     };
 
@@ -149,14 +151,14 @@ pub async fn remove_snippet(
     #[description = "The snippet's id"]
     id: String,
 ) -> Result<(), Error> {
-    match get_snippet_lazy(&ctx, &id).await {
+    match get_snippet_lazy(&ctx, &id) {
         Some(snippet) => {
             remove_snippet_confirm(&ctx, &snippet).await?;
         }
         None => {
             let title = &"Failed to remove snippet";
             let content = &&format!("The snippet '{id}' does not exist");
-            respond_err(&ctx, title, content).await
+            respond_err(&ctx, title, content).await;
         }
     }
 
@@ -190,7 +192,7 @@ pub async fn list_snippets(ctx: Context<'_>) -> Result<(), Error> {
         .map(|snippet| (snippet.id.clone(), snippet.title.clone(), true))
         .collect::<Vec<(String, String, bool)>>()
         .chunks(25)
-        .map(|chunk| chunk.to_vec())
+        .map(<[(String, String, bool)]>::to_vec)
         .collect();
 
     super::paginate_lists(ctx, &pages, "Snippets").await?;
@@ -209,7 +211,7 @@ pub async fn export_snippet(
     #[description = "The snippet's id"]
     id: String,
 ) -> Result<(), Error> {
-    match get_snippet_lazy(&ctx, &id).await {
+    match get_snippet_lazy(&ctx, &id) {
         Some(snippet) => {
             let attachment =
                 CreateAttachment::bytes(snippet.content.replace('\n', r"\n"), "snippet.txt");
@@ -221,7 +223,7 @@ pub async fn export_snippet(
         None => {
             let title = &"Failed to export snippet";
             let content = &&format!("The snippet '{id}' does not exist");
-            respond_err(&ctx, title, content).await
+            respond_err(&ctx, title, content).await;
         }
     }
 
@@ -239,7 +241,7 @@ impl Embeddable for Snippet {
 }
 
 // Exact matches the snippet id and name.
-async fn _get_snippet(ctx: &Context<'_>, id: &str) -> Option<Snippet> {
+fn _get_snippet(ctx: &Context<'_>, id: &str) -> Option<Snippet> {
     let data = ctx.data();
     let rwlock_guard = data.state.read().unwrap();
 
@@ -251,7 +253,7 @@ async fn _get_snippet(ctx: &Context<'_>, id: &str) -> Option<Snippet> {
 }
 
 // Matches the snippet by checking if its starts with the id and name.
-async fn get_snippet_lazy(ctx: &Context<'_>, id: &str) -> Option<Snippet> {
+fn get_snippet_lazy(ctx: &Context<'_>, id: &str) -> Option<Snippet> {
     let data = ctx.data();
     let rwlock_guard = data.state.read().unwrap();
 
@@ -262,7 +264,7 @@ async fn get_snippet_lazy(ctx: &Context<'_>, id: &str) -> Option<Snippet> {
         .cloned()
 }
 
-async fn rm_snippet(ctx: &Context<'_>, snippet: &Snippet) {
+fn rm_snippet(ctx: &Context<'_>, snippet: &Snippet) {
     let data = ctx.data();
     let mut rwlock_guard = data.state.write().unwrap();
 
@@ -281,8 +283,8 @@ async fn remove_snippet_confirm(ctx: &Context<'_>, snippet: &Snippet) -> Result<
     let snippet_embed = snippet.embed();
 
     let ctx_id = ctx.id();
-    let delete_id = format!("{}cancel", ctx_id);
-    let cancel_id = format!("{}delete", ctx_id);
+    let delete_id = format!("{ctx_id}cancel");
+    let cancel_id = format!("{ctx_id}delete");
 
     let components = serenity::CreateActionRow::Buttons(vec![
         serenity::CreateButton::new(&cancel_id).label("Cancel"),
@@ -322,7 +324,7 @@ async fn handle_delete(
     snippet: &Snippet,
     interaction: serenity::ComponentInteraction,
 ) -> Result<(), Error> {
-    rm_snippet(ctx, snippet).await;
+    rm_snippet(ctx, snippet);
     interaction
         .create_response(
             ctx,

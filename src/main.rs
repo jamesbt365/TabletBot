@@ -1,3 +1,11 @@
+#![warn(clippy::pedantic)]
+// They aren't exactly any more unreadable this way, even more so considering they are hexadecimal.
+#![allow(clippy::unreadable_literal)]
+// Preference.
+#![allow(clippy::single_match, clippy::single_match_else)]
+// Possibly will fix in the future, it just isn't a problem as it stands.
+#![allow(clippy::too_many_lines)]
+
 pub(crate) mod commands;
 pub(crate) mod events;
 pub(crate) mod formatting;
@@ -20,10 +28,10 @@ type Context<'a> = poise::Context<'a, Data, Error>;
 
 async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
     match error {
-        poise::FrameworkError::Setup { error, .. } => panic!("Failed to start bot: {:?}", error),
+        poise::FrameworkError::Setup { error, .. } => panic!("Failed to start bot: {error:?}"),
         poise::FrameworkError::Command { ctx, error, .. } => {
             let error = error.to_string();
-            eprintln!("An error occured in a command: {}", error);
+            eprintln!("An error occured in a command: {error}");
             commands::respond_err(&ctx, "Command Error", &error).await;
         }
 
@@ -35,12 +43,9 @@ async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
                 None => "Please check the help menu for usage information",
             };
             let response = if let Some(input) = input {
-                format!(
-                    "**Cannot parse `{}` as argument: {}**\n{}",
-                    input, error, usage
-                )
+                format!("**Cannot parse `{input}` as argument: {error}**\n{usage}")
             } else {
-                format!("### {}\n{}", error, usage)
+                format!("### {error}\n{usage}")
             };
             commands::respond_err(&ctx, "Argument Parsing Error", &response).await;
         }
@@ -55,7 +60,7 @@ async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
 
         error => {
             if let Err(e) = poise::builtins::on_error(error).await {
-                println!("Error while handling error: {}", e)
+                println!("Error while handling error: {e}");
             }
         }
     }

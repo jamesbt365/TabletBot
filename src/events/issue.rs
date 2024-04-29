@@ -22,8 +22,8 @@ pub async fn message(data: &Data, ctx: &Context, message: &Message) {
         let typing = message.channel_id.start_typing(&ctx.http);
 
         let ctx_id = message.id.get(); // poise context isn't available here.
-        let remove_id = format!("{}remove", ctx_id);
-        let hide_body_id = format!("{}hide_body", ctx_id);
+        let remove_id = format!("{ctx_id}remove");
+        let hide_body_id = format!("{ctx_id}hide_body");
         let remove = CreateActionRow::Buttons(vec![CreateButton::new(&remove_id)
             .label("delete")
             .style(ButtonStyle::Danger)]);
@@ -124,7 +124,7 @@ async fn issue_embeds(data: &Data, message: &Message) -> Option<Vec<CreateEmbed>
     let client = octocrab::instance();
     let ratelimit = client.ratelimit();
 
-    let regex = Regex::new(r#" ?([a-zA-Z0-9-_.]+)?#([0-9]+) ?"#).expect("Expected numbers regex");
+    let regex = Regex::new(r" ?([a-zA-Z0-9-_.]+)?#([0-9]+) ?").expect("Expected numbers regex");
 
     let custom_repos = { data.state.read().unwrap().issue_prefixes.clone() };
 
@@ -211,7 +211,7 @@ impl Document for Issue {
 
         let mut description = String::default();
         for line in body.split('\n').take(15) {
-            description.push_str(&format!("{}\n", line));
+            description.push_str(&format!("{line}\n"));
         }
 
         description.shrink_to(4096);
@@ -226,7 +226,9 @@ impl Document for Issue {
     }
 
     fn get_labels(&self) -> Option<String> {
-        if !self.labels.is_empty() {
+        if self.labels.is_empty() {
+            None
+        } else {
             let labels = &self
                 .labels
                 .iter()
@@ -234,8 +236,6 @@ impl Document for Issue {
                 .collect::<Vec<String>>();
 
             Some(format!("`{}`", labels.join("`, `")))
-        } else {
-            None
         }
     }
 }
@@ -270,7 +270,7 @@ impl Embeddable for PullRequest {
             embed = embed.field("Labels", labels, true);
         }
 
-        embed.to_owned()
+        embed
     }
 }
 
@@ -287,7 +287,7 @@ impl Document for PullRequest {
 
         let mut content = String::default();
         for line in body.split('\n').take(15) {
-            content.push_str(&format!("{}\n", line));
+            content.push_str(&format!("{line}\n"));
         }
 
         content.shrink_to(4096);
