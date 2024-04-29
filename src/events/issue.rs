@@ -5,8 +5,8 @@ use ::serenity::builder::CreateEmbedAuthor;
 use octocrab::models::issues::Issue;
 use octocrab::models::pulls::PullRequest;
 use poise::serenity_prelude::{
-    self as serenity, ButtonStyle, Colour, Context, CreateActionRow,
-    CreateButton, CreateEmbed, CreateInteractionResponse, Message, Permissions
+    self as serenity, ButtonStyle, Colour, Context, CreateActionRow, CreateButton, CreateEmbed,
+    CreateInteractionResponse, Message, Permissions,
 };
 use regex::Regex;
 
@@ -54,8 +54,6 @@ pub async fn message(data: &Data, ctx: &Context, message: &Message) {
                     member_perms.contains(Permissions::MANAGE_MESSAGES)
                 })
             });
-
-
 
             if press.data.custom_id == remove_id {
                 if press.user.id == message.author.id || has_perms {
@@ -120,7 +118,6 @@ pub async fn message(data: &Data, ctx: &Context, message: &Message) {
         }
     }
 }
-
 
 async fn issue_embeds(data: &Data, message: &Message) -> Option<Vec<CreateEmbed>> {
     let mut embeds: Vec<CreateEmbed> = vec![];
