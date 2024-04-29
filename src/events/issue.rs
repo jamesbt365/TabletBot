@@ -5,8 +5,8 @@ use ::serenity::builder::CreateEmbedAuthor;
 use octocrab::models::issues::Issue;
 use octocrab::models::pulls::PullRequest;
 use poise::serenity_prelude::{
-    self as serenity, ButtonStyle, Colour, Context, CreateActionRow, CreateButton, CreateEmbed,
-    CreateInteractionResponse, Message, Permissions,
+    self as serenity, ButtonStyle, Colour, Context, CreateActionRow,
+    CreateButton, CreateEmbed, CreateInteractionResponse, Message, Permissions
 };
 use regex::Regex;
 
@@ -49,65 +49,65 @@ pub async fn message(data: &Data, ctx: &Context, message: &Message) {
             .timeout(Duration::from_secs(60))
             .await
         {
-            // Safe to unwap member because this only runs in guilds.
-            // The only way this could go wrong if cache isn't ready? (fresh bot restart)
             let has_perms = press.member.as_ref().map_or(false, |member| {
                 member.permissions.map_or(false, |member_perms| {
                     member_perms.contains(Permissions::MANAGE_MESSAGES)
                 })
             });
 
-            if press.data.custom_id == remove_id
-                && (press.user.id == message.author.id || has_perms)
-            {
-                let _ = press
-                    .create_response(ctx, CreateInteractionResponse::Acknowledge)
+
+
+            if press.data.custom_id == remove_id {
+                if press.user.id == message.author.id || has_perms {
+                    let _ = press
+                        .create_response(ctx, CreateInteractionResponse::Acknowledge)
+                        .await;
+                    if let Ok(ref msg) = msg_result {
+                        let _ = msg.delete(ctx).await;
+                    }
+                    msg_deleted = true;
+                } else {
+                    interaction_err(
+                        ctx,
+                        &press,
+                        "Unable to use interaction because you are missing `MANAGE_MESSAGES`.",
+                    )
                     .await;
-                if let Ok(ref msg) = msg_result {
-                    let _ = msg.delete(ctx).await;
                 }
-                msg_deleted = true;
-            } else {
-                interaction_err(
-                    ctx,
-                    &press,
-                    "Unable to use interaction because you are missing `MANAGE_MESSAGES`.",
-                )
-                .await;
             }
 
-            if press.data.custom_id == hide_body_id
-                && (press.user.id == message.author.id || has_perms)
-            {
-                if !body_hid {
-                    let mut hid_body_embeds: Vec<CreateEmbed> = Vec::new();
-                    if let Ok(ref msg) = msg_result {
-                        for mut embed in msg.embeds.clone() {
-                            embed.description = None;
-                            let embed: CreateEmbed = embed.clone().into();
-                            hid_body_embeds.push(embed);
+            if press.data.custom_id == hide_body_id {
+                if press.user.id == message.author.id || has_perms {
+                    if !body_hid {
+                        let mut hid_body_embeds: Vec<CreateEmbed> = Vec::new();
+                        if let Ok(ref msg) = msg_result {
+                            for mut embed in msg.embeds.clone() {
+                                embed.description = None;
+                                let embed: CreateEmbed = embed.clone().into();
+                                hid_body_embeds.push(embed);
+                            }
                         }
-                    }
 
-                    let _ = press
-                        .create_response(
-                            ctx,
-                            serenity::CreateInteractionResponse::UpdateMessage(
-                                serenity::CreateInteractionResponseMessage::new()
-                                    .embeds(hid_body_embeds)
-                                    .components(vec![remove.clone()]),
-                            ),
-                        )
-                        .await;
+                        let _ = press
+                            .create_response(
+                                ctx,
+                                serenity::CreateInteractionResponse::UpdateMessage(
+                                    serenity::CreateInteractionResponseMessage::new()
+                                        .embeds(hid_body_embeds)
+                                        .components(vec![remove.clone()]),
+                                ),
+                            )
+                            .await;
+                    }
+                    body_hid = true;
+                } else {
+                    interaction_err(
+                        ctx,
+                        &press,
+                        "Unable to use interaction because you are missing `MANAGE_MESSAGES`.",
+                    )
+                    .await;
                 }
-                body_hid = true;
-            } else {
-                interaction_err(
-                    ctx,
-                    &press,
-                    "Unable to use interaction because you are missing `MANAGE_MESSAGES`.",
-                )
-                .await;
             }
         }
         // Triggers on timeout.
@@ -120,6 +120,7 @@ pub async fn message(data: &Data, ctx: &Context, message: &Message) {
         }
     }
 }
+
 
 async fn issue_embeds(data: &Data, message: &Message) -> Option<Vec<CreateEmbed>> {
     let mut embeds: Vec<CreateEmbed> = vec![];
