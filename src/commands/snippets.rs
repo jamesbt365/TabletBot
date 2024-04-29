@@ -294,7 +294,10 @@ async fn remove_snippet_confirm(ctx: &Context<'_>, snippet: &Snippet) -> Result<
     ]);
 
     let builder: poise::CreateReply = poise::CreateReply::default()
-        .content(format!("Are you sure you want to delete snippet `{}`?", snippet.id))
+        .content(format!(
+            "Are you sure you want to delete snippet `{}`?",
+            snippet.id
+        ))
         .ephemeral(true)
         .embed(snippet_embed)
         .components(vec![components]);
@@ -321,22 +324,22 @@ async fn handle_delete(
     snippet: &Snippet,
     interaction: serenity::ComponentInteraction,
 ) -> Result<(), Error> {
-
     rm_snippet(ctx, snippet).await;
     interaction
         .create_response(
             ctx,
             CreateInteractionResponse::UpdateMessage(
-                CreateInteractionResponseMessage::new().content("Deleted!")
+                CreateInteractionResponseMessage::new()
+                    .content("Deleted!")
                     .embeds(vec![])
                     .components(vec![]),
             ),
         )
         .await?;
 
-        let title = format!("{} removed a snippet", ctx.author().tag());
-        let content = &&format!("Removed snippet `{}`", snippet.format_output());
-        respond_ok(ctx, &title, content).await;
+    let title = format!("{} removed a snippet", ctx.author().tag());
+    let content = &&format!("Removed snippet `{}`", snippet.format_output());
+    respond_ok(ctx, &title, content).await;
 
     Ok(())
 }
