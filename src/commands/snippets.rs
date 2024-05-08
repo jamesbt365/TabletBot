@@ -21,7 +21,7 @@ async fn autocomplete_snippet<'a>(
             .unwrap()
             .snippets
             .iter()
-            .map(|s| format!("{}: {}", s.id, s.title))
+            .map(Snippet::format_output)
             .collect()
     };
 
