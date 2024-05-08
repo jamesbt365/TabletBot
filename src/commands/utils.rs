@@ -124,9 +124,7 @@ pub async fn embed(
     Ok(())
 }
 
-/// Create an embed in the current channel.
-///
-///
+/// Edits an embed already sent by the embed command.
 #[allow(clippy::too_many_arguments)]
 #[poise::command(rename = "edit-embed", slash_command, guild_only)]
 pub async fn edit_embed(

@@ -26,7 +26,7 @@ async fn autocomplete_snippet<'a>(
     };
 
     futures::stream::iter(snippet_list).filter(move |name| {
-        futures::future::ready(name.to_lowercase().contains(partial.to_lowercase()))
+        futures::future::ready(name.to_lowercase().contains(&partial.to_lowercase()))
     })
 }
 

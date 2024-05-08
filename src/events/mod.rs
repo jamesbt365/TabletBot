@@ -3,7 +3,7 @@ use poise::serenity_prelude as serenity;
 use crate::{Data, Error};
 
 pub mod code;
-pub mod issue;
+pub mod issues;
 
 pub async fn event_handler(
     ctx: &serenity::Context,
@@ -15,7 +15,7 @@ pub async fn event_handler(
     match event {
         serenity::FullEvent::Message { new_message } => {
             if !new_message.author.bot && new_message.guild_id.is_some() {
-                issue::message(data, ctx, new_message).await;
+                issues::message(data, ctx, new_message).await;
                 code::message(ctx, new_message).await;
             }
         }
