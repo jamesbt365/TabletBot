@@ -88,14 +88,6 @@ pub async fn create_snippet(
         rwlock_guard.snippets.push(snippet);
         rwlock_guard.write();
 
-        if rwlock_guard.snippets.len() > 25 {
-            embed = embed.field(
-                "Warning",
-                "There are more than 25 snippets, some may not appear in the snippet list.",
-                false,
-            );
-        }
-
         embed
     };
 
