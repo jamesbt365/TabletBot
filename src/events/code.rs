@@ -6,6 +6,7 @@ use poise::serenity_prelude::{self as serenity, Colour, Context, CreateEmbed, Me
 
 use crate::formatting::trim_indent;
 
+// A shade of purple.
 const ACCENT_COLOUR: Colour = Colour::new(0x8957e5);
 
 pub async fn message(ctx: &Context, message: &Message) {

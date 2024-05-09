@@ -21,12 +21,13 @@ async fn autocomplete_snippet<'a>(
             .unwrap()
             .snippets
             .iter()
-            .map(|s| format!("{}: {}", s.id, s.title))
+            .map(Snippet::format_output)
             .collect()
     };
 
-    futures::stream::iter(snippet_list)
-        .filter(move |name| futures::future::ready(name.contains(partial)))
+    futures::stream::iter(snippet_list).filter(move |name| {
+        futures::future::ready(name.to_lowercase().contains(&partial.to_lowercase()))
+    })
 }
 
 /// Show a snippet
@@ -86,14 +87,6 @@ pub async fn create_snippet(
 
         rwlock_guard.snippets.push(snippet);
         rwlock_guard.write();
-
-        if rwlock_guard.snippets.len() > 25 {
-            embed = embed.field(
-                "Warning",
-                "There are more than 25 snippets, some may not appear in the snippet list.",
-                false,
-            );
-        }
 
         embed
     };
