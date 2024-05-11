@@ -5,6 +5,9 @@ pub(crate) const ACCENT_COLOUR: Colour = Colour(0x8957e5);
 pub(crate) const OK_COLOUR: Colour = Colour(0x2ecc71);
 pub(crate) const ERROR_COLOUR: Colour = Colour(0xe74c3c);
 
+use arrayvec::ArrayString;
+use to_arraystring::ToArrayString;
+
 use crate::{Context, Error};
 
 use poise::serenity_prelude::{
@@ -64,20 +67,43 @@ pub async fn interaction_err(ctx: &serenity::Context, press: &ComponentInteracti
     let _ = press.create_response(ctx, builder).await;
 }
 
+enum Kind {
+    Next,
+    Previous,
+}
+
+impl Kind {
+    fn from_id(id: &str, ctx_id: &str) -> Option<Self> {
+        let this = match id.strip_prefix(ctx_id)? {
+            "next" => Self::Next,
+            "prev" => Self::Previous,
+            _ => return None,
+        };
+
+        Some(this)
+    }
+}
+
 pub async fn paginate_lists<U, E>(
     ctx: poise::Context<'_, U, E>,
     pages: &[Vec<(String, String, bool)>],
     embed_title: &str,
 ) -> Result<(), Error> {
-    let ctx_id = ctx.id();
-    let prev_button_id = format!("{ctx_id}prev");
-    let next_button_id = format!("{ctx_id}next");
+    let ctx_id = ctx.id().to_arraystring();
+
+    let mut prev_button_id = ArrayString::<24>::new();
+    prev_button_id.push_str(&ctx_id);
+    prev_button_id.push_str("prev");
+
+    let mut next_button_id = ArrayString::<24>::new();
+    next_button_id.push_str(&ctx_id);
+    next_button_id.push_str("next");
 
     let colour = Colour::TEAL;
 
     let components = CreateActionRow::Buttons(vec![
-        CreateButton::new(&prev_button_id).emoji('◀'),
-        CreateButton::new(&next_button_id).emoji('▶'),
+        CreateButton::new(&*prev_button_id).emoji('◀'),
+        CreateButton::new(&*next_button_id).emoji('▶'),
     ]);
     let mut current_page = 0;
 
@@ -113,15 +139,17 @@ pub async fn paginate_lists<U, E>(
             .timeout(std::time::Duration::from_secs(180))
             .await
         {
-            if press.data.custom_id == next_button_id {
-                current_page += 1;
-                if current_page >= pages.len() {
-                    current_page = 0;
+            match Kind::from_id(&press.data.custom_id, &ctx_id) {
+                Some(Kind::Next) => {
+                    current_page += 1;
+                    if current_page >= pages.len() {
+                        current_page = 0;
+                    }
                 }
-            } else if press.data.custom_id == prev_button_id {
-                current_page = current_page.checked_sub(1).unwrap_or(pages.len() - 1);
-            } else {
-                continue;
+                Some(Kind::Previous) => {
+                    current_page = current_page.checked_sub(1).unwrap_or(pages.len() - 1);
+                }
+                None => continue,
             }
 
             press

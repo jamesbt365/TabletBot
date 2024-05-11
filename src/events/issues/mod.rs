@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use crate::{commands::interaction_err, structures::Embeddable, Data};
 
+use arrayvec::ArrayString;
 use poise::serenity_prelude::{
     self as serenity, ButtonStyle, Context, CreateActionRow, CreateButton, CreateEmbed,
     CreateInteractionResponse, Message, Permissions,
@@ -43,18 +44,26 @@ pub async fn message(data: &Data, ctx: &Context, message: &Message) {
         // we can avoid even a stack allocation! (thanks gnome)
         let ctx_id = message.id.get().to_arraystring();
 
-        let remove_id = format!("{ctx_id}delete");
-        let hide_body_id = format!("{ctx_id}hide_body");
+        // we know the max size so we don't need to allocate.
+        // 20 + 6
+        let mut remove_id = ArrayString::<26>::new();
+        remove_id.push_str(&ctx_id);
+        remove_id.push_str("delete");
 
-        let remove = CreateActionRow::Buttons(vec![CreateButton::new(&remove_id)
+        // 20 + 9
+        let mut hide_body_id = ArrayString::<29>::new();
+        hide_body_id.push_str(&ctx_id);
+        hide_body_id.push_str("hide_body");
+
+        let remove = CreateActionRow::Buttons(vec![CreateButton::new(&*remove_id)
             .label("delete")
             .style(ButtonStyle::Danger)]);
 
         let components = serenity::CreateActionRow::Buttons(vec![
-            CreateButton::new(&remove_id)
+            CreateButton::new(&*remove_id)
                 .label("delete")
                 .style(ButtonStyle::Danger),
-            CreateButton::new(&hide_body_id).label("hide body"),
+            CreateButton::new(&*hide_body_id).label("hide body"),
         ]);
 
         let content: serenity::CreateMessage = serenity::CreateMessage::default()
