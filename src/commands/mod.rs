@@ -84,8 +84,8 @@ impl Kind {
     }
 }
 
-pub async fn paginate_lists<U, E>(
-    ctx: poise::Context<'_, U, E>,
+pub async fn paginate_lists(
+    ctx: crate::Context<'_>,
     pages: &[Vec<(String, String, bool)>],
     embed_title: &str,
 ) -> Result<(), Error> {
