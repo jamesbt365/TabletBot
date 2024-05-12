@@ -2,6 +2,7 @@ use octocrab::models::{issues::Issue, pulls::PullRequest};
 use poise::serenity_prelude::{Colour, CreateEmbed, CreateEmbedAuthor};
 
 use crate::structures::Embeddable;
+use std::fmt::Write;
 
 const OPEN_COLOUR: Colour = Colour::new(0x238636);
 const RESOLVED_COLOUR: Colour = Colour::new(0x8957e5);
@@ -47,9 +48,9 @@ impl Document for Issue {
     fn get_content(&self) -> String {
         let body = self.body.as_deref().unwrap_or_default();
 
-        let mut description = String::default();
+        let mut description = String::new();
         for line in body.split('\n').take(15) {
-            description.push_str(&format!("{line}\n"));
+            writeln!(description, "{line}").unwrap();
         }
 
         description.shrink_to(4096);
@@ -123,9 +124,9 @@ impl Document for PullRequest {
     fn get_content(&self) -> String {
         let body = self.body.as_deref().unwrap_or_default();
 
-        let mut content = String::default();
+        let mut content = String::new();
         for line in body.split('\n').take(15) {
-            content.push_str(&format!("{line}\n"));
+            writeln!(content, "{line}").unwrap();
         }
 
         content.shrink_to(4096);
