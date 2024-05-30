@@ -1,3 +1,5 @@
+use std::sync::OnceLock;
+
 use crate::{
     commands::{respond_embed, respond_err, respond_ok},
     structures::RepositoryDetails,
@@ -269,8 +271,8 @@ pub async fn add_repo(
     #[description = "The owner of the repository."] owner: String,
     #[description = "The respository name."] repository: String,
 ) -> Result<(), Error> {
-    let key_regex = Regex::new(r"[a-z+]+$").unwrap();
-    let repo_details_regex = Regex::new(r"^([a-zA-Z0-9-_.]+)*$").unwrap();
+    let key_regex = get_key_regex();
+    let repo_details_regex = get_repo_details_regex();
     if !key_regex.is_match(&key) {
         respond_err(
             &ctx,
@@ -402,4 +404,14 @@ fn rm_repo(ctx: &Context<'_>, key: &str) {
     let mut rwlock_guard = data.state.write().unwrap();
 
     rwlock_guard.issue_prefixes.remove(key);
+}
+
+fn get_key_regex() -> &'static Regex {
+    static REGEX: OnceLock<Regex> = OnceLock::new();
+    REGEX.get_or_init(|| Regex::new(r"[a-z+]+$").unwrap())
+}
+
+fn get_repo_details_regex() -> &'static Regex {
+    static REGEX: OnceLock<Regex> = OnceLock::new();
+    REGEX.get_or_init(|| Regex::new(r"^([a-zA-Z0-9-_.]+)*$").unwrap())
 }

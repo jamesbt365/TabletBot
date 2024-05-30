@@ -1,6 +1,6 @@
 use regex::{Match, Regex};
-use std::path::Path;
 use std::str::FromStr;
+use std::{path::Path, sync::OnceLock};
 
 use poise::serenity_prelude::{self as serenity, Colour, Context, CreateEmbed, Message};
 
@@ -80,9 +80,7 @@ struct FileReference<'a> {
 
 impl FileReference<'_> {
     pub fn try_from_str(text: &str) -> Option<Vec<FileReference>> {
-        let r =
-            Regex::new(r"https://github.com/(.+?)/(.+?)/blob/(.+?)/(.+?)#L([0-9]+)(?:-L([0-9]+))?")
-                .expect("Expected url regex");
+        let r = get_file_reference_regex();
 
         let files: Vec<FileReference> = r
             .captures_iter(text)
@@ -155,4 +153,12 @@ impl FileReference<'_> {
             None
         }
     }
+}
+
+fn get_file_reference_regex() -> &'static Regex {
+    static REGEX: OnceLock<Regex> = OnceLock::new();
+    REGEX.get_or_init(|| {
+        Regex::new(r"https://github.com/(.+?)/(.+?)/blob/(.+?)/(.+?)#L([0-9]+)(?:-L([0-9]+))?")
+            .unwrap()
+    })
 }

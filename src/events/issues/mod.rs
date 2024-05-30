@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{sync::OnceLock, time::Duration};
 
 use crate::{commands::interaction_err, structures::Embeddable, Data};
 
@@ -152,8 +152,7 @@ async fn issue_embeds(data: &Data, message: &Message) -> Option<Vec<CreateEmbed>
     let client = octocrab::instance();
     let ratelimit = client.ratelimit();
 
-    // TODO: stop compiling this every time.
-    let regex = Regex::new(r" ?([a-zA-Z0-9-_.]+)?#([0-9]+) ?").expect("Expected numbers regex");
+    let regex = get_issue_regex();
 
     let custom_repos = { data.state.read().unwrap().issue_prefixes.clone() };
 
@@ -196,4 +195,9 @@ async fn issue_embeds(data: &Data, message: &Message) -> Option<Vec<CreateEmbed>
     } else {
         Some(embeds)
     }
+}
+
+fn get_issue_regex() -> &'static Regex {
+    static REGEX: OnceLock<Regex> = OnceLock::new();
+    REGEX.get_or_init(|| Regex::new(r" ?([a-zA-Z0-9-_.]+)?#([0-9]+) ?").unwrap())
 }
