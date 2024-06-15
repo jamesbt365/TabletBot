@@ -5,7 +5,7 @@ pub(crate) const ACCENT_COLOUR: Colour = Colour(0x8957e5);
 pub(crate) const OK_COLOUR: Colour = Colour(0x2ecc71);
 pub(crate) const ERROR_COLOUR: Colour = Colour(0xe74c3c);
 
-use arrayvec::ArrayString;
+use aformat::aformat;
 use to_arraystring::ToArrayString;
 
 use crate::{Context, Error};
@@ -91,13 +91,9 @@ pub async fn paginate_lists(
 ) -> Result<(), Error> {
     let ctx_id = ctx.id().to_arraystring();
 
-    let mut prev_button_id = ArrayString::<24>::new();
-    prev_button_id.push_str(&ctx_id);
-    prev_button_id.push_str("prev");
 
-    let mut next_button_id = ArrayString::<24>::new();
-    next_button_id.push_str(&ctx_id);
-    next_button_id.push_str("next");
+    let prev_button_id = aformat!("{ctx_id}prev");
+    let next_button_id = aformat!("{ctx_id}next");
 
     let colour = Colour::TEAL;
 
