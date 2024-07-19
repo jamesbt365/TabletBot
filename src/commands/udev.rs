@@ -23,7 +23,8 @@ pub async fn generate_udev(
     let attachment = CreateAttachment::bytes(udev, "70-opentabletdriver.rules");
     ctx.send(
         CreateReply::default()
-            .content("place this file in `/etc/udev/rules.d/70-opentabletdriver.rules`")
+            .content("place this file in `/etc/udev/rules.d/70-opentabletdriver.rules` then run the following:\n \
+            ```\nsudo udevadm control --reload-rules && sudo udevadm trigger\n```")
             .attachment(attachment),
     )
     .await?;
