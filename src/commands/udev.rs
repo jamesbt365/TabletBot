@@ -23,7 +23,7 @@ pub async fn generate_udev(
 
     let attachment = CreateAttachment::bytes(udev, "70-opentabletdriver.rules");
     let embed = CreateEmbed::new()
-        .title("Generated Udev rules")
+        .title("Generated udev rules")
         .description(
             "Move this file to `/etc/udev/rules.d/70-opentabletdriver.rules` then run the \
              following commands: \n```sudo udevadm control --reload-rules && sudo udevadm \
