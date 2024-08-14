@@ -1,8 +1,9 @@
+use crate::commands::OK_COLOUR;
 use crate::{Context, Error};
 
 use std::fmt::Write;
 
-use poise::serenity_prelude::CreateAttachment;
+use poise::serenity_prelude::{CreateAttachment, CreateEmbed};
 use poise::CreateReply;
 
 /// Generates udev rules for the given vendor and product Ids.
@@ -21,15 +22,17 @@ pub async fn generate_udev(
     let udev = gen_udev(vendor_id, product_id, libinput_override.unwrap_or(true));
 
     let attachment = CreateAttachment::bytes(udev, "70-opentabletdriver.rules");
-    ctx.send(
-        CreateReply::default()
-            .content(
-                "place this file in `/etc/udev/rules.d/70-opentabletdriver.rules` then run the \
-                 following: \n```sudo udevadm control --reload-rules && sudo udevadm trigger\n```",
-            )
-            .attachment(attachment),
-    )
-    .await?;
+    let embed = CreateEmbed::new()
+        .title("Generated Udev rules")
+        .description(
+            "Move this file to `/etc/udev/rules.d/70-opentabletdriver.rules` then run the \
+             following commands: \n```sudo udevadm control --reload-rules && sudo udevadm \
+             trigger\n```",
+        )
+        .color(OK_COLOUR);
+
+    ctx.send(CreateReply::default().embed(embed).attachment(attachment))
+        .await?;
 
     Ok(())
 }
