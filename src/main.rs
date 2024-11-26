@@ -71,7 +71,8 @@ async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
 
 #[tokio::main]
 async fn main() {
-    let discord_token = env::var("DISCORD_TOKEN").expect("Expected discord api token");
+    let discord_token =
+        serenity::Token::from_env("DISCORD_TOKEN").expect("Expected discord api token");
     let github_token = env::var("GITHUB_TOKEN").expect("Expected github api token");
 
     let octo_builder = Octocrab::builder().personal_token(github_token);
@@ -128,7 +129,7 @@ async fn main() {
         | GatewayIntents::DIRECT_MESSAGES
         | GatewayIntents::MESSAGE_CONTENT;
 
-    let mut client = serenity::Client::builder(&discord_token, intents)
+    let mut client = serenity::Client::builder(discord_token, intents)
         .framework(framework)
         .data(Arc::new(data))
         .await
