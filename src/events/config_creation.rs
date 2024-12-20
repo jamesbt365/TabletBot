@@ -88,9 +88,7 @@ async fn collect_and_action(ctx: &serenity::Context, thread: &GuildChannel) {
                 // Right now it just ends at the first mention of a problematic device, but not
                 // many people ask for config support when they have multiple tablets plugged in?
                 for device in diag.hid_devices {
-                    if check_device!(device, 21827, 129)
-                        || check_device!(device, 9580, 97 | 100 | 109 | 110 | 111)
-                    {
+                    if check_device!(device, 21827, 129) || check_device!(device, 9580, 90..120) {
                         maybe_dump = Some(device);
                         break;
                     }
